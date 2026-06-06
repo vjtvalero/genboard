@@ -1,0 +1,70 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  @apply bg-neutral-950 text-neutral-100 antialiased;
+}
+
+/* Mode accent: drives the --accent custom property used across the shell. */
+[data-mode="pm"] {
+  --accent: theme("colors.pm.DEFAULT");
+  --accent-soft: theme("colors.pm.soft");
+}
+[data-mode="se"] {
+  --accent: theme("colors.se.DEFAULT");
+  --accent-soft: theme("colors.se.soft");
+}
+
+.accent-bg {
+  background-color: var(--accent);
+}
+.accent-text {
+  color: var(--accent-soft);
+}
+.accent-border {
+  border-color: var(--accent);
+}
+.accent-ring {
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+/* Terminal stream panel */
+.terminal {
+  @apply font-mono text-[13px] leading-relaxed whitespace-pre-wrap break-words;
+}
+
+/* react-diff-view base theming for dark mode */
+.diff {
+  @apply text-[12.5px] font-mono;
+}
+.diff-gutter {
+  @apply text-neutral-600;
+}
+.diff-code-insert {
+  background-color: rgba(16, 185, 129, 0.16);
+}
+.diff-code-delete {
+  background-color: rgba(244, 63, 94, 0.16);
+}
+.diff-gutter-insert {
+  background-color: rgba(16, 185, 129, 0.24);
+}
+.diff-gutter-delete {
+  background-color: rgba(244, 63, 94, 0.24);
+}
+
+/* Thin scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #404040 transparent;
+}

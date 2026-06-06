@@ -1,0 +1,156 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Shared application types
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Collaboration primitives
+export type Mode = "pm" | "se";
+
+export type TaskStatus =
+  | "backlog"
+  | "running"
+  | "executed"
+  | "in_review"
+  | "changes_requested"
+  | "approved"
+  | "pushed"
+  | "failed";
+
+export type Priority = "low" | "medium" | "high" | "urgent";
+
+export type ReviewDecision = "approved" | "changes_requested";
+
+export type ReviewStatus = "pending" | "approved" | "changes_requested";
+
+export type ActivityKind =
+  | "created"
+  | "executed"
+  | "ai_reviewed"
+  | "approved"
+  | "changes_requested"
+  | "pushed"
+  | "reordered"
+  | "rolled_back"
+  | "failed";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AI provider layer
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface FileContext {
+  path: string;
+  content: string;
+}
+
+/** A single full-file replacement, with the pre-write snapshot for rollback. */
+export interface FilePatch {
+  path: string;
+  originalContent: string;
+  newContent: string;
+}
+
+export interface AIRequest {
+  prompt: string;
+  repoFullName: string;
+  files: FileContext[];
+  /** Absolute local repo path — required by "apply"-mode (agentic CLI) providers. */
+  repoPath?: string;
+}
+
+export interface AIResponse {
+  patches: FilePatch[];
+  rawText: string;
+}
+
+export interface AIReviewRequest {
+  prompt: string; // original task prompt, for context
+  repoFullName: string;
+  diff: DiffFile[]; // what changed
+}
+
+export interface AIReviewFinding {
+  path: string;
+  line?: number;
+  severity: "info" | "warning" | "critical";
+  message: string;
+}
+
+export interface AIReview {
+  summary: string;
+  findings: AIReviewFinding[];
+}
+
+/**
+ * Streaming AI provider. Both methods are async generators: they `yield` raw
+ * text tokens (for the SSE terminal panel) and `return` the structured result
+ * once the stream completes.
+ */
+export interface AIProvider {
+  name: string;
+  /**
+   * "patch" — the model returns JSON file replacements that the route applies.
+   * "apply" — an agentic CLI edits the working tree itself; the route derives the
+   * diff from git afterward.
+   */
+  mode: "patch" | "apply";
+  execute(req: AIRequest): AsyncGenerator<string, AIResponse, unknown>;
+  reviewDiff(req: AIReviewRequest): AsyncGenerator<string, AIReview, unknown>;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Diff display
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface DiffFile {
+  path: string;
+  hunks: string; // unified diff string for this file
+  additions: number;
+  deletions: number;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Review UI
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface ReviewComment {
+  path: string;
+  line?: number;
+  body: string;
+}
+
+// Client-facing task shape (serializable; dates as ISO strings).
+export interface TaskCard {
+  id: string;
+  repoFullName: string;
+  title: string;
+  prompt: string;
+  status: TaskStatus;
+  priority: Priority;
+  order: number;
+  latestResultId: string | null;
+  updatedAt: string;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GitHub
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface RepoSummary {
+  fullName: string; // "owner/repo"
+  name: string;
+  owner: string;
+  private: boolean;
+  defaultBranch: string;
+  htmlUrl: string;
+  linkedPath?: string | null; // local workspace path, if linked
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SSE event envelope (Execute + AI review streams)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type StreamEvent =
+  | { type: "token"; text: string }
+  | { type: "status"; message: string }
+  | { type: "done"; resultId: string }
+  | { type: "review_done"; resultId: string; review: AIReview }
+  | { type: "error"; message: string };

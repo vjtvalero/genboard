@@ -1,0 +1,68 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Task {
+  id             String   @id @default(cuid())
+  repoFullName   String // "owner/repo"
+  title          String
+  prompt         String
+  status         String   @default("backlog")
+  // backlog | running | executed | in_review | changes_requested | approved | pushed | failed
+  priority       String   @default("medium") // low | medium | high | urgent
+  order          Int      @default(0) // manual backlog ordering within a repo
+  latestResultId String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  results Result[]
+  events  ActivityEvent[]
+
+  @@index([repoFullName, status])
+}
+
+model Result {
+  id           String   @id @default(cuid())
+  taskId       String
+  task         Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  patchesJson  String // JSON: { path, originalContent, newContent }[]
+  diffJson     String   @default("[]") // JSON: DiffFile[] for display
+  executedBy   String   @default("pm") // "pm" | "se" — which mode ran it (audit)
+  reviewStatus String   @default("pending") // pending | approved | changes_requested
+  aiReviewJson String   @default("null") // cached AIReview: { summary, findings[] }
+  approved     Boolean  @default(false)
+  commitSha    String?
+  rawText      String   @default("")
+  createdAt    DateTime @default(now())
+
+  review Review?
+
+  @@index([taskId])
+}
+
+model Review {
+  id           String   @id @default(cuid())
+  resultId     String   @unique
+  result       Result   @relation(fields: [resultId], references: [id], onDelete: Cascade)
+  decision     String // approved | changes_requested
+  summary      String   @default("") // SE's overall note
+  commentsJson String   @default("[]") // ReviewComment[]: { path, line?, body }
+  createdAt    DateTime @default(now())
+}
+
+model ActivityEvent {
+  id        String   @id @default(cuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  kind      String // created | executed | ai_reviewed | approved | changes_requested | pushed | reordered | rolled_back | failed
+  actorMode String // "pm" | "se"
+  detail    String   @default("")
+  createdAt DateTime @default(now())
+
+  @@index([taskId])
+}
