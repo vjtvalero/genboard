@@ -97,3 +97,30 @@ working tree afterward.
 | `npm run build` | Production build (runs `prisma generate`) |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run db:push` | Sync Prisma schema → SQLite |
+
+## Running on this machine (live deployment)
+
+> This host runs Genboard differently from the generic **Setup** above: secrets are in
+> `.env` (not `.env.local`), the port is **47813** (not 3000), and it runs as an always-on
+> service rather than a manual `npm run dev`. See [`CLAUDE.md`](./CLAUDE.md) for the full
+> operator notes.
+
+- **Always-on service.** Managed by a systemd **user** unit
+  `~/.config/systemd/user/genboard.service` (enabled, linger on → survives reboot/logout).
+  It runs `next dev -p 47813` with an absolute nvm node path, so **Fast Refresh stays
+  active** — edit source and it hot-reloads with no restart.
+
+  ```bash
+  systemctl --user status genboard      # state
+  systemctl --user restart genboard     # hard restart (needed after .env changes)
+  journalctl --user -u genboard -f      # live logs
+  ```
+
+- **Port:** `47813` (local: <http://localhost:47813>).
+- **Public URL:** <https://genboard.vjtv.dev> via Cloudflare Tunnel (token-managed; ingress
+  configured in the Cloudflare Zero Trust dashboard → `genboard.vjtv.dev → HTTP localhost:47813`).
+- **Env (gitignored `.env`):** includes `AUTH_TRUST_HOST=true` and
+  `AUTH_URL=https://genboard.vjtv.dev` so OAuth works behind the proxy.
+- **Database:** `file:/home/vncntjms/.genboard/genboard.db`; schema applied with
+  `npm run db:push`.
+- **GitHub OAuth callback** must be `https://genboard.vjtv.dev/api/auth/callback/github`.
