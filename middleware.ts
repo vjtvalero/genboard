@@ -1,5 +1,11 @@
-import { auth } from "@/lib/auth";
+import NextAuth from "next-auth";
+import { authConfig } from "@/lib/auth.config";
 import { NextResponse } from "next/server";
+
+// Use the edge-safe config (no Prisma) so middleware can run in the Edge
+// Runtime. The Prisma-touching `jwt` callback in lib/auth.ts is intentionally
+// excluded here — the token already carries userId/role from when it was minted.
+const { auth } = NextAuth(authConfig);
 
 // Protect all (app) routes; redirect unauthenticated users to /login.
 export default auth((req) => {

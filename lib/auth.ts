@@ -1,27 +1,24 @@
 import NextAuth from "next-auth";
-import GitHub from "next-auth/providers/github";
+import { authConfig } from "@/lib/auth.config";
 import { getUserByLogin, isUserRole, upsertGitHubUser } from "@/lib/users";
 
 /**
  * NextAuth v5 (beta) config — GitHub OAuth with app-local users/roles.
  *
- * We use the JWT session strategy (no DB adapter) so that the GitHub
- * `access_token` is easy to surface on the session for Octokit calls. The
- * `repo` scope is required to list private repos and push.
+ * Runs in the Node runtime (route handlers via `handlers`, server-side `auth()`
+ * calls) so the `jwt` callback below can touch Prisma. Middleware uses the
+ * edge-safe `authConfig` directly and must NOT import this module.
+ *
+ * JWT session strategy (no DB adapter) keeps the GitHub `access_token` easy to
+ * surface on the session for Octokit calls; the `repo` scope is required to
+ * list private repos and push.
  */
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  providers: [
-    GitHub({
-      clientId: process.env.AUTH_GITHUB_ID,
-      clientSecret: process.env.AUTH_GITHUB_SECRET,
-      authorization: {
-        params: { scope: "read:user user:email repo" },
-      },
-    }),
-  ],
-  session: { strategy: "jwt" },
+  ...authConfig,
   callbacks: {
+    ...authConfig.callbacks,
     // Persist the GitHub access token + local user identity onto the JWT.
+    // Touches Prisma, so this only runs in the Node runtime.
     async jwt({ token, account, profile }) {
       if (account?.access_token) {
         token.accessToken = account.access_token;
@@ -49,16 +46,5 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       }
       return token;
     },
-    // Surface access token + local user role on the session.
-    async session({ session, token }) {
-      session.accessToken = token.accessToken as string | undefined;
-      session.githubLogin = token.login as string | undefined;
-      if (typeof token.userId === "string") session.userId = token.userId;
-      if (isUserRole(token.role)) session.role = token.role;
-      return session;
-    },
-  },
-  pages: {
-    signIn: "/login",
   },
 });
