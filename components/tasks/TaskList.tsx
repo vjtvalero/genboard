@@ -16,7 +16,7 @@ const GROUPS: { key: string; label: string; statuses: TaskStatus[] }[] = [
   { key: "backlog", label: "Backlog", statuses: ["backlog"] },
   { key: "attention", label: "Needs Attention", statuses: ["changes_requested", "failed"] },
   { key: "active", label: "In Progress", statuses: ["running", "executed", "in_review"] },
-  { key: "done", label: "Done", statuses: ["approved", "pushed"] },
+  { key: "done", label: "Done", statuses: ["approved", "pr_opened", "pushed"] },
 ];
 
 export default function TaskList({ tasks, repo }: { tasks: TaskCard[]; repo: string }) {
@@ -133,6 +133,9 @@ export default function TaskList({ tasks, repo }: { tasks: TaskCard[]; repo: str
                       <div className="mt-2 flex items-center gap-2">
                         <span className={`rounded px-2 py-0.5 text-[11px] ${STATUS_CLASS[t.status]}`}>
                           {STATUS_LABEL[t.status]}
+                        </span>
+                        <span className="rounded bg-neutral-800 px-2 py-0.5 font-mono text-[11px] text-neutral-300">
+                          {t.branchName}
                         </span>
                         <select
                           value={t.priority}

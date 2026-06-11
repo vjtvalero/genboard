@@ -6,15 +6,15 @@ Orientation for a fresh session. Read this first, then `PLAN.md` for full design
 ## What this is
 
 No-code app-dev tool: a **Project Manager + Senior Engineer** workflow over an AI
-engineer. Manage a backlog, run an AI provider on a linked **local git repo**, stream
-its reasoning, review the produced diff (with an AI critique), then **Approve & Push**
+engineer. Manage a backlog, run an AI provider in an isolated git worktree, stream
+its reasoning, review the produced diff (with an AI critique), then **Approve & Open PR**
 (gated behind SE approval). Next.js 14 (App Router) · NextAuth v5 (GitHub OAuth, JWT) ·
 Prisma + SQLite · Vercel AI SDK · `simple-git` · `@octokit/rest` · Tailwind.
 
 ## How it runs ON THIS MACHINE (read before "starting" anything)
 
 It is **already running** as an always-on **systemd user service** — do not `npm run dev`
-yourself; the service owns the port.
+yourself; the service owns the web port.
 
 | Thing | Value |
 |---|---|
@@ -35,34 +35,37 @@ journalctl --user -u genboard -f        # live logs
   **Unit file edits** → `systemctl --user daemon-reload && systemctl --user restart genboard`.
 - Node version is pinned by absolute path in the unit; if nvm changes, edit `ExecStart`.
 
-### Cloudflare Tunnel
-Runs as the **system** service `cloudflared.service` with `tunnel run --token …`
-(token-managed). Tunnel ID `a9a17576-a6e3-4753-bb38-c1350cac47b4`. Ingress is configured
-**in the Cloudflare Zero Trust dashboard** (Networks → Tunnels → Public Hostnames),
-**not** in a local `config.yml` — there is no local cloudflared config/cert on this box.
-Public hostname maps `genboard.vjtv.dev → HTTP localhost:47813`.
-
 ## Config & data (this machine)
 
 - Secrets live ONLY in the **gitignored `.env`** (not `.env.local`). Never commit them.
-  Notable keys set for the tunnel: `AUTH_TRUST_HOST=true`, `AUTH_URL=https://genboard.vjtv.dev`.
+  `AUTH_URL` points at the Cloudflare public URL so OAuth redirects do not fall back to localhost.
+- GitHub OAuth is used locally for sign-in, repo discovery, clone/fetch, push, and PR creation.
 - SQLite DB: `file:/home/vncntjms/.genboard/genboard.db` (`DATABASE_URL`). The Windows path
   from upstream `.env.example` was changed to this Linux path.
+- Managed repo mirrors live under `~/.genboard/repos/<owner>/<repo>.git`; per-run
+  editable worktrees live under `~/.genboard/worktrees/<taskId>/<runId>`.
+- Execution runs/logs are persisted in SQLite. Execution starts inside the local API/SSE
+  request and tails `ExecutionLog` rows so refreshes can reconnect while the same local
+  process is still running.
+- Users are persisted in SQLite. The first signed-in user becomes admin;
+  `GENBOARD_ADMIN_GITHUB_LOGINS=login1,login2` can force admin role assignment.
+  PM/SE are switchable workflow modes; admin is only for settings management.
+- Repositories are persisted/enabled in SQLite and exposed by membership:
+  admins manage them in Settings, PM/SE users only see assigned repositories.
 - AI selection persists at `~/.genboard/ai-config.json`; `.env` `AI_PROVIDER`/`AI_CLAUDE_MODEL`
   only seed the first run. Current seed: `claude-cli` / `claude-sonnet-4-6`.
 - Schema is managed with **`prisma db push`** (no migration files): `npm run db:push`.
 
 ### External pieces owned by the user (may be in progress)
-1. Cloudflare public-hostname ingress (dashboard) → `genboard.vjtv.dev` → `localhost:47813`.
-2. GitHub OAuth app (`AUTH_GITHUB_ID` `Ov23lij7qnxlys677QB0`) callback URL must be
-   `https://genboard.vjtv.dev/api/auth/callback/github` or login fails.
+1. GitHub OAuth app callback URL should be
+   `https://genboard.vjtv.dev/api/auth/callback/github` for the tunneled service.
 
 ## Code map
 
 - `app/` — App Router. `(auth)` login, `(app)` authed UI, `api/` route handlers (SSE streaming).
 - `lib/ai/` — provider adapters (`claude-api`, `claude-cli`, `openai`, `google`, `codex`, `agy`);
   two shapes: JSON-patch returners vs. agentic CLIs that edit the working tree directly.
-- `lib/git/`, `lib/github/`, `lib/workspace/` — repo ops, Octokit, linked-repo handling.
+- `lib/git/`, `lib/github/`, `lib/workspace/` — repo ops, Octokit, managed mirror/worktree handling.
 - `lib/auth.ts` — NextAuth v5 config. `middleware.ts` — auth gate (the 307 → `/login` redirect).
 - `prisma/schema.prisma` — data model. `types/` — shared + next-auth type augmentation.
 

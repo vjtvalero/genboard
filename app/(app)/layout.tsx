@@ -11,7 +11,9 @@ import SignOutButton from "@/components/layout/SignOutButton";
 import Sidebar from "@/components/layout/Sidebar";
 import { getAISettings, availableProviders } from "@/lib/ai/config";
 import { CATALOG } from "@/lib/ai/catalog";
-import type { Priority, TaskStatus } from "@/types";
+import { getUserByLogin, isUserRole, roleToMode } from "@/lib/users";
+import { userCanAccessRepository } from "@/lib/repositories";
+import type { Priority, TaskStatus, UserRole } from "@/types";
 
 export const dynamic = "force-dynamic";
 
@@ -22,10 +24,19 @@ export default async function AppLayout({
 }) {
   const session = await auth();
   if (!session) redirect("/login");
+  if (!session.githubLogin) redirect("/login");
 
-  const mode = getMode();
-  const selectedRepo = cookies().get("genboard_repo")?.value ?? null;
+  const user = await getUserByLogin(session.githubLogin);
+  if (!user) redirect("/login");
+  const role: UserRole = isUserRole(user.role) ? user.role : "pm";
+  const mode = roleToMode(role, getMode());
+  const selectedRepoCookie = cookies().get("genboard_repo")?.value ?? null;
+  const selectedRepo =
+    selectedRepoCookie && (await userCanAccessRepository(user, selectedRepoCookie))
+      ? selectedRepoCookie
+      : null;
   const aiSettings = await getAISettings();
+  const isAdmin = role === "admin";
 
   const dbTasks = selectedRepo
     ? await prisma.task.findMany({
@@ -50,8 +61,10 @@ export default async function AppLayout({
         <div className="ml-2 flex-1">
           <RepoSwitcher selectedRepo={selectedRepo} />
         </div>
-        <AISwitcher settings={aiSettings} catalog={CATALOG} available={availableProviders()} />
-        <ModeSwitcher mode={mode} />
+        {isAdmin && (
+          <AISwitcher settings={aiSettings} catalog={CATALOG} available={availableProviders()} />
+        )}
+        <ModeSwitcher mode={mode} role={role} canSwitch />
         <Link
           href="/settings"
           className="rounded-md px-2.5 py-1.5 text-sm text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100"
@@ -59,6 +72,9 @@ export default async function AppLayout({
           Settings
         </Link>
         <div className="flex items-center gap-2 text-sm text-neutral-400">
+          <span className="rounded bg-neutral-800 px-2 py-0.5 text-xs uppercase text-neutral-400">
+            {role}
+          </span>
           {session.githubLogin && <span>@{session.githubLogin}</span>}
           <SignOutButton />
         </div>

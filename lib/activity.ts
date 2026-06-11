@@ -7,8 +7,9 @@ export async function logActivity(
   kind: ActivityKind,
   actorMode: Mode,
   detail = "",
+  userId?: string | null,
 ): Promise<void> {
   await prisma.activityEvent.create({
-    data: { taskId, kind, actorMode, detail },
+    data: { taskId, kind, actorMode, detail, userId: userId ?? null },
   });
 }

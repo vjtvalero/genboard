@@ -1,9 +1,12 @@
 import { cookies } from "next/headers";
+import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getMode } from "@/lib/mode";
+import { getUserByLogin, isUserRole, roleToMode } from "@/lib/users";
+import { userCanAccessRepository } from "@/lib/repositories";
 import TaskList from "@/components/tasks/TaskList";
 import ReviewQueue from "@/components/tasks/ReviewQueue";
-import type { Priority, TaskStatus, TaskCard } from "@/types";
+import type { Priority, TaskStatus, TaskCard, UserRole } from "@/types";
 
 export const dynamic = "force-dynamic";
 
@@ -12,8 +15,15 @@ export default async function TasksPage({
 }: {
   searchParams: { view?: string };
 }) {
-  const mode = getMode();
-  const selectedRepo = cookies().get("genboard_repo")?.value ?? null;
+  const session = await auth();
+  const user = session?.githubLogin ? await getUserByLogin(session.githubLogin) : null;
+  const role: UserRole = isUserRole(user?.role) ? user.role : "pm";
+  const mode = roleToMode(role, getMode());
+  const selectedRepoCookie = cookies().get("genboard_repo")?.value ?? null;
+  const selectedRepo =
+    user && selectedRepoCookie && (await userCanAccessRepository(user, selectedRepoCookie))
+      ? selectedRepoCookie
+      : null;
   const isReview = mode === "se" || searchParams.view === "review";
 
   if (!selectedRepo) {
@@ -22,8 +32,8 @@ export default async function TasksPage({
         <div className="max-w-md text-center">
           <h2 className="text-lg font-semibold">No repository selected</h2>
           <p className="mt-2 text-sm text-neutral-400">
-            Pick a repository from the switcher above. Link it to a local clone on
-            the Settings page first if it isn&apos;t linked yet.
+            Pick a repository from the switcher above. Genboard will prepare an
+            isolated worktree when a task runs.
           </p>
         </div>
       </div>
@@ -38,6 +48,7 @@ export default async function TasksPage({
   const tasks: TaskCard[] = dbTasks.map((t) => ({
     id: t.id,
     repoFullName: t.repoFullName,
+    branchName: t.branchName,
     title: t.title,
     prompt: t.prompt,
     status: t.status as TaskStatus,

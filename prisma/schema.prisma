@@ -7,23 +7,124 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Task {
-  id             String   @id @default(cuid())
-  repoFullName   String // "owner/repo"
-  title          String
-  prompt         String
-  status         String   @default("backlog")
-  // backlog | running | executed | in_review | changes_requested | approved | pushed | failed
-  priority       String   @default("medium") // low | medium | high | urgent
-  order          Int      @default(0) // manual backlog ordering within a repo
-  latestResultId String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+model User {
+  id          String   @id @default(cuid())
+  githubId    String?  @unique
+  githubLogin String   @unique
+  email       String?
+  name        String?
+  avatarUrl   String?
+  role        String   @default("pm") // pm | se | admin
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  results Result[]
-  events  ActivityEvent[]
+  createdTasks      Task[]                 @relation("TaskCreator")
+  addedRepositories Repository[]           @relation("RepositoryAdder")
+  repoMemberships   RepositoryMembership[]
+  reviews           Review[]               @relation("ReviewReviewer")
+  activityEvents    ActivityEvent[]        @relation("ActivityActor")
+  executionRuns     ExecutionRun[]
+
+  @@index([role])
+}
+
+model Repository {
+  id            String   @id @default(cuid())
+  fullName      String   @unique // "owner/repo"
+  owner         String
+  name          String
+  private       Boolean  @default(false)
+  defaultBranch String   @default("main")
+  htmlUrl       String   @default("")
+  enabled       Boolean  @default(true)
+  addedByUserId String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  addedBy     User?                  @relation("RepositoryAdder", fields: [addedByUserId], references: [id], onDelete: SetNull)
+  tasks       Task[]
+  memberships RepositoryMembership[]
+
+  @@index([enabled])
+  @@index([addedByUserId])
+}
+
+model RepositoryMembership {
+  id           String   @id @default(cuid())
+  repositoryId String
+  userId       String
+  access       String   @default("member") // member
+  createdAt    DateTime @default(now())
+
+  repository Repository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([repositoryId, userId])
+  @@index([userId])
+}
+
+model Task {
+  id              String   @id @default(cuid())
+  repositoryId    String?
+  repoFullName    String // "owner/repo"
+  branchName      String   @default("main")
+  createdByUserId String?
+  title           String
+  prompt          String
+  status          String   @default("backlog")
+  // backlog | running | executed | in_review | changes_requested | approved | pr_opened | pushed | failed
+  priority        String   @default("medium") // low | medium | high | urgent
+  order           Int      @default(0) // manual backlog ordering within a repo
+  latestResultId  String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  repository    Repository?     @relation(fields: [repositoryId], references: [id], onDelete: SetNull)
+  createdBy     User?           @relation("TaskCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  results       Result[]
+  events        ActivityEvent[]
+  executionRuns ExecutionRun[]
 
   @@index([repoFullName, status])
+  @@index([repositoryId])
+  @@index([createdByUserId])
+}
+
+model ExecutionRun {
+  id         String    @id @default(cuid())
+  taskId     String
+  userId     String?
+  mode       String    @default("pm") // pm | se
+  status     String    @default("queued") // queued | running | succeeded | failed
+  resultId   String?
+  error      String?
+  createdAt  DateTime  @default(now())
+  startedAt  DateTime?
+  finishedAt DateTime?
+  updatedAt  DateTime  @updatedAt
+
+  task Task           @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  logs ExecutionLog[]
+
+  @@index([taskId, status])
+  @@index([userId])
+  @@index([status, createdAt])
+  @@index([createdAt])
+}
+
+model ExecutionLog {
+  id        String   @id @default(cuid())
+  runId     String
+  seq       Int
+  type      String
+  eventJson String
+  createdAt DateTime @default(now())
+
+  run ExecutionRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, seq])
+  @@index([runId, seq])
 }
 
 model Result {
@@ -37,6 +138,10 @@ model Result {
   aiReviewJson String   @default("null") // cached AIReview: { summary, findings[] }
   approved     Boolean  @default(false)
   commitSha    String?
+  prNumber     Int?
+  prUrl        String?
+  prBranch     String?
+  worktreePath String?
   rawText      String   @default("")
   createdAt    DateTime @default(now())
 
@@ -46,23 +151,30 @@ model Result {
 }
 
 model Review {
-  id           String   @id @default(cuid())
-  resultId     String   @unique
-  result       Result   @relation(fields: [resultId], references: [id], onDelete: Cascade)
-  decision     String // approved | changes_requested
-  summary      String   @default("") // SE's overall note
-  commentsJson String   @default("[]") // ReviewComment[]: { path, line?, body }
-  createdAt    DateTime @default(now())
+  id             String   @id @default(cuid())
+  resultId       String   @unique
+  reviewerUserId String?
+  result         Result   @relation(fields: [resultId], references: [id], onDelete: Cascade)
+  reviewer       User?    @relation("ReviewReviewer", fields: [reviewerUserId], references: [id], onDelete: SetNull)
+  decision       String // approved | changes_requested
+  summary        String   @default("") // SE's overall note
+  commentsJson   String   @default("[]") // ReviewComment[]: { path, line?, body }
+  createdAt      DateTime @default(now())
+
+  @@index([reviewerUserId])
 }
 
 model ActivityEvent {
   id        String   @id @default(cuid())
   taskId    String
+  userId    String?
   task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  kind      String // created | executed | ai_reviewed | approved | changes_requested | pushed | reordered | rolled_back | failed
+  actor     User?    @relation("ActivityActor", fields: [userId], references: [id], onDelete: SetNull)
+  kind      String // created | executed | ai_reviewed | approved | changes_requested | pr_opened | pushed | reordered | rolled_back | failed
   actorMode String // "pm" | "se"
   detail    String   @default("")
   createdAt DateTime @default(now())
 
   @@index([taskId])
+  @@index([userId])
 }

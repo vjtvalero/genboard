@@ -1,14 +1,15 @@
-import { getSession, unauthorized, badRequest, notFound, serverError, json } from "@/lib/api";
+import { badRequest, forbidden, notFound, serverError, json, requireUser } from "@/lib/api";
 import { prisma } from "@/lib/db";
 import { logActivity } from "@/lib/activity";
+import { userCanAccessRepository } from "@/lib/repositories";
 import type { ReviewComment, ReviewDecision } from "@/types";
 
 export const dynamic = "force-dynamic";
 
 // POST /api/results/[resultId]/review — SE verdict: approve or request changes.
 export async function POST(req: Request, { params }: { params: { resultId: string } }) {
-  const session = await getSession();
-  if (!session) return unauthorized();
+  const ctx = await requireUser();
+  if (ctx instanceof Response) return ctx;
 
   let body: { decision?: ReviewDecision; summary?: string; comments?: ReviewComment[] };
   try {
@@ -29,13 +30,22 @@ export async function POST(req: Request, { params }: { params: { resultId: strin
     include: { task: true },
   });
   if (!result) return notFound("Result not found");
+  if (!(await userCanAccessRepository(ctx.user, result.task.repoFullName))) {
+    return forbidden("You do not have access to this repository.");
+  }
 
   try {
     await prisma.review.upsert({
       where: { resultId: result.id },
-      update: { decision, summary, commentsJson: JSON.stringify(comments) },
+      update: {
+        decision,
+        summary,
+        commentsJson: JSON.stringify(comments),
+        reviewerUserId: ctx.user.id,
+      },
       create: {
         resultId: result.id,
+        reviewerUserId: ctx.user.id,
         decision,
         summary,
         commentsJson: JSON.stringify(comments),
@@ -58,6 +68,7 @@ export async function POST(req: Request, { params }: { params: { resultId: strin
       decision === "approved" ? "approved" : "changes_requested",
       "se",
       summary || (decision === "approved" ? "Approved" : "Changes requested"),
+      ctx.user.id,
     );
 
     return json({ ok: true, reviewStatus: decision, taskStatus: newStatus });

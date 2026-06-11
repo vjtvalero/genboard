@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { getUserByLogin } from "@/lib/users";
+import { userCanAccessRepository } from "@/lib/repositories";
 import DiffWorkspace from "@/components/diff/DiffWorkspace";
 import type { AIReview, DiffFile, ReviewComment, ReviewStatus } from "@/types";
 
@@ -13,6 +16,9 @@ export default async function DiffPage({
 }) {
   const task = await prisma.task.findUnique({ where: { id: params.taskId } });
   if (!task) notFound();
+  const session = await auth();
+  const user = session?.githubLogin ? await getUserByLogin(session.githubLogin) : null;
+  if (!user || !(await userCanAccessRepository(user, task.repoFullName))) notFound();
 
   // Prefer the task's latest result; fall back to most recent.
   const result = task.latestResultId
@@ -78,6 +84,8 @@ export default async function DiffPage({
       initialSummary={result.review?.summary ?? ""}
       initialComments={comments}
       initialCommitSha={result.commitSha}
+      initialPrNumber={result.prNumber}
+      initialPrUrl={result.prUrl}
     />
   );
 }

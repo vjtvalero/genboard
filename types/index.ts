@@ -5,6 +5,8 @@
 // Collaboration primitives
 export type Mode = "pm" | "se";
 
+export type UserRole = "pm" | "se" | "admin";
+
 export type TaskStatus =
   | "backlog"
   | "running"
@@ -12,6 +14,7 @@ export type TaskStatus =
   | "in_review"
   | "changes_requested"
   | "approved"
+  | "pr_opened"
   | "pushed"
   | "failed";
 
@@ -27,6 +30,7 @@ export type ActivityKind =
   | "ai_reviewed"
   | "approved"
   | "changes_requested"
+  | "pr_opened"
   | "pushed"
   | "reordered"
   | "rolled_back"
@@ -121,6 +125,7 @@ export interface ReviewComment {
 export interface TaskCard {
   id: string;
   repoFullName: string;
+  branchName: string;
   title: string;
   prompt: string;
   status: TaskStatus;
@@ -130,18 +135,38 @@ export interface TaskCard {
   updatedAt: string;
 }
 
+export interface UserSummary {
+  id: string;
+  githubLogin: string;
+  email: string | null;
+  name: string | null;
+  avatarUrl: string | null;
+  role: UserRole;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // GitHub
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface RepoSummary {
+  id?: string;
   fullName: string; // "owner/repo"
   name: string;
   owner: string;
   private: boolean;
   defaultBranch: string;
   htmlUrl: string;
-  linkedPath?: string | null; // local workspace path, if linked
+  enabled?: boolean;
+  membershipUserIds?: string[];
+  localPath?: string;
+  cloned?: boolean;
+}
+
+export interface RepoBranch {
+  name: string;
+  protected: boolean;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

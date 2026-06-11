@@ -8,11 +8,13 @@ export async function readSSE(
   url: string,
   body: unknown,
   onEvent: (event: StreamEvent) => void,
+  options: { method?: "GET" | "POST" } = {},
 ): Promise<void> {
+  const method = options.method ?? "POST";
   const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body ?? {}),
+    method,
+    headers: method === "POST" ? { "Content-Type": "application/json" } : undefined,
+    body: method === "POST" ? JSON.stringify(body ?? {}) : undefined,
   });
 
   if (!res.ok || !res.body) {

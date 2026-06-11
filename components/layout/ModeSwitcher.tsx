@@ -1,9 +1,17 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import type { Mode } from "@/types";
+import type { Mode, UserRole } from "@/types";
 
-export default function ModeSwitcher({ mode }: { mode: Mode }) {
+export default function ModeSwitcher({
+  mode,
+  role,
+  canSwitch,
+}: {
+  mode: Mode;
+  role: UserRole;
+  canSwitch: boolean;
+}) {
   const router = useRouter();
 
   function setMode(next: Mode) {
@@ -11,6 +19,14 @@ export default function ModeSwitcher({ mode }: { mode: Mode }) {
     document.cookie = `genboard_mode=${next}; path=/; max-age=31536000`;
     router.push(next === "se" ? "/tasks?view=review" : "/tasks");
     router.refresh();
+  }
+
+  if (!canSwitch) {
+    return (
+      <div className="rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm font-medium text-neutral-300">
+        {role === "se" ? "SE" : "PM"}
+      </div>
+    );
   }
 
   return (

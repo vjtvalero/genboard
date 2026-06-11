@@ -9,25 +9,29 @@ export default function ApproveBar({
   taskTitle,
   reviewStatus,
   initialCommitSha,
-  commitUrlBase,
+  initialPrNumber,
+  initialPrUrl,
 }: {
   resultId: string;
   taskTitle: string;
   reviewStatus: ReviewStatus;
   initialCommitSha: string | null;
-  commitUrlBase: string; // https://github.com/owner/repo
+  initialPrNumber: number | null;
+  initialPrUrl: string | null;
 }) {
   const router = useRouter();
   const [commitMessage, setCommitMessage] = useState(`genboard: ${taskTitle}`);
   const [pushing, setPushing] = useState(false);
   const [commitSha, setCommitSha] = useState<string | null>(initialCommitSha);
+  const [prNumber, setPrNumber] = useState<number | null>(initialPrNumber);
+  const [prUrl, setPrUrl] = useState<string | null>(initialPrUrl);
   const [error, setError] = useState<string | null>(null);
   const [rollingBack, setRollingBack] = useState(false);
 
   const approved = reviewStatus === "approved";
-  const pushed = !!commitSha;
+  const opened = !!prUrl;
 
-  async function push() {
+  async function openPullRequest() {
     setError(null);
     setPushing(true);
     try {
@@ -37,8 +41,10 @@ export default function ApproveBar({
         body: JSON.stringify({ commitMessage }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Push failed");
+      if (!res.ok) throw new Error(data.error ?? "PR creation failed");
       setCommitSha(data.commitSha);
+      setPrNumber(data.prNumber ?? null);
+      setPrUrl(data.prUrl ?? null);
       router.refresh();
     } catch (e) {
       setError((e as Error).message);
@@ -63,28 +69,33 @@ export default function ApproveBar({
     }
   }
 
-  if (pushed) {
+  if (opened) {
     return (
       <div className="rounded-lg border border-emerald-700/50 bg-emerald-900/20 p-4">
-        <div className="text-sm font-medium text-emerald-300">Pushed to origin ✓</div>
+        <div className="text-sm font-medium text-emerald-300">Pull request opened</div>
         <a
-          href={`${commitUrlBase}/commit/${commitSha}`}
+          href={prUrl}
           target="_blank"
           rel="noreferrer"
           className="mt-1 inline-block font-mono text-xs text-emerald-400 underline"
         >
-          {commitSha?.slice(0, 10)} — view on GitHub →
+          #{prNumber ?? "PR"} — view on GitHub →
         </a>
+        {commitSha && (
+          <div className="mt-1 font-mono text-[11px] text-neutral-500">
+            {commitSha.slice(0, 10)}
+          </div>
+        )}
       </div>
     );
   }
 
   return (
     <div className="rounded-lg border border-neutral-800 bg-neutral-900/40 p-4">
-      <h3 className="text-sm font-semibold">Approve &amp; Push</h3>
+      <h3 className="text-sm font-semibold">Approve &amp; Open PR</h3>
       {!approved && (
         <p className="mt-1 text-xs text-amber-400">
-          Push is gated: a Senior Engineer must approve this result first.
+          PR creation is gated: a Senior Engineer must approve this result first.
         </p>
       )}
       <input
@@ -95,12 +106,12 @@ export default function ApproveBar({
       {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
       <div className="mt-3 flex gap-2">
         <button
-          onClick={push}
+          onClick={openPullRequest}
           disabled={!approved || pushing}
           className="flex-1 accent-bg rounded-md px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-40"
           title={approved ? "" : "Requires SE approval"}
         >
-          {pushing ? "Pushing…" : "Approve & Push"}
+          {pushing ? "Opening..." : "Open PR"}
         </button>
         <button
           onClick={rollback}

@@ -1,5 +1,5 @@
 import { octokitFromToken } from "./octokit";
-import type { RepoSummary } from "@/types";
+import type { RepoBranch, RepoSummary } from "@/types";
 
 /**
  * List the authenticated user's repos (most-recently-updated first), where they
@@ -24,4 +24,90 @@ export async function listReposForUser(token: string): Promise<RepoSummary[]> {
       defaultBranch: r.default_branch ?? "main",
       htmlUrl: r.html_url,
     }));
+}
+
+export async function getRepoSummary(
+  token: string,
+  repoFullName: string,
+): Promise<RepoSummary> {
+  const [owner, repo] = repoFullName.split("/");
+  if (!owner || !repo) throw new Error(`Invalid repo name: ${repoFullName}`);
+
+  const octokit = octokitFromToken(token);
+  const { data } = await octokit.repos.get({ owner, repo });
+  return {
+    fullName: data.full_name,
+    name: data.name,
+    owner: data.owner?.login ?? owner,
+    private: data.private,
+    defaultBranch: data.default_branch ?? "main",
+    htmlUrl: data.html_url,
+  };
+}
+
+export async function listBranchesForRepo(
+  token: string,
+  repoFullName: string,
+): Promise<RepoBranch[]> {
+  const [owner, repo] = repoFullName.split("/");
+  if (!owner || !repo) throw new Error(`Invalid repo name: ${repoFullName}`);
+
+  const octokit = octokitFromToken(token);
+  const branches = await octokit.paginate(octokit.repos.listBranches, {
+    owner,
+    repo,
+    per_page: 100,
+  });
+
+  return branches.map((b) => ({
+    name: b.name,
+    protected: b.protected,
+  }));
+}
+
+export async function getRepoDefaultBranch(
+  token: string,
+  repoFullName: string,
+): Promise<string> {
+  const [owner, repo] = repoFullName.split("/");
+  if (!owner || !repo) throw new Error(`Invalid repo name: ${repoFullName}`);
+
+  const octokit = octokitFromToken(token);
+  const { data } = await octokit.repos.get({ owner, repo });
+  return data.default_branch ?? "main";
+}
+
+export interface PullRequestResult {
+  number: number;
+  htmlUrl: string;
+}
+
+export async function createPullRequest(
+  token: string,
+  repoFullName: string,
+  input: {
+    title: string;
+    body: string;
+    head: string;
+    base: string;
+  },
+): Promise<PullRequestResult> {
+  const [owner, repo] = repoFullName.split("/");
+  if (!owner || !repo) throw new Error(`Invalid repo name: ${repoFullName}`);
+
+  const octokit = octokitFromToken(token);
+  const { data } = await octokit.pulls.create({
+    owner,
+    repo,
+    title: input.title,
+    body: input.body,
+    head: input.head,
+    base: input.base,
+    maintainer_can_modify: true,
+  });
+
+  return {
+    number: data.number,
+    htmlUrl: data.html_url,
+  };
 }

@@ -18,6 +18,8 @@ export default function DiffWorkspace({
   initialSummary,
   initialComments,
   initialCommitSha,
+  initialPrNumber,
+  initialPrUrl,
 }: {
   resultId: string;
   taskId: string;
@@ -29,12 +31,12 @@ export default function DiffWorkspace({
   initialSummary: string;
   initialComments: ReviewComment[];
   initialCommitSha: string | null;
+  initialPrNumber: number | null;
+  initialPrUrl: string | null;
 }) {
   const [aiReview, setAiReview] = useState<AIReview | null>(initialAiReview);
   const [reviewStatus, setReviewStatus] = useState<ReviewStatus>(initialReviewStatus);
 
-  const [owner, repo] = repoFullName.split("/");
-  const commitUrlBase = `https://github.com/${owner}/${repo}`;
   const diffPaths = diff.map((d) => d.path);
 
   return (
@@ -68,7 +70,8 @@ export default function DiffWorkspace({
             taskTitle={taskTitle}
             reviewStatus={reviewStatus}
             initialCommitSha={initialCommitSha}
-            commitUrlBase={commitUrlBase}
+            initialPrNumber={initialPrNumber}
+            initialPrUrl={initialPrUrl}
           />
         </div>
       </div>

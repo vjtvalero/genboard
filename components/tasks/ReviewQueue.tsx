@@ -9,6 +9,7 @@ const REVIEW_STATUSES: TaskStatus[] = [
   "executed",
   "changes_requested",
   "approved",
+  "pr_opened",
   "pushed",
 ];
 

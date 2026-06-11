@@ -1,12 +1,12 @@
-import { getSession, unauthorized, badRequest, json } from "@/lib/api";
+import { badRequest, json, requireRole } from "@/lib/api";
 import { validateRepoPath } from "@/lib/git/validate";
 
 export const dynamic = "force-dynamic";
 
 // POST /api/workspace/validate — { localPath } → { ok, reason?, absPath? }
 export async function POST(req: Request) {
-  const session = await getSession();
-  if (!session) return unauthorized();
+  const ctx = await requireRole(["admin"]);
+  if (ctx instanceof Response) return ctx;
 
   let body: { localPath?: string };
   try {

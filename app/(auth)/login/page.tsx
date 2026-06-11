@@ -8,7 +8,7 @@ export default function LoginPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Genboard</h1>
           <p className="mt-2 text-sm text-neutral-400">
             No-code app development. Manage a backlog, run an AI engineer, review
-            the diff, and push — all from the browser.
+            the diff, and open a pull request — all from the browser.
           </p>
         </div>
 
@@ -30,8 +30,8 @@ export default function LoginPage() {
         </form>
 
         <p className="mt-4 text-center text-xs text-neutral-500">
-          Requires the <code>repo</code> scope to list and push to your
-          repositories.
+          Requires the <code>repo</code> scope to list repositories and push PR
+          branches.
         </p>
       </div>
     </main>

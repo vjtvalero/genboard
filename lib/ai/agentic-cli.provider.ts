@@ -38,7 +38,7 @@ export abstract class AgenticCLIProvider implements AIProvider {
   async *execute(req: AIRequest): AsyncGenerator<string, AIResponse, unknown> {
     const root = req.repoPath;
     if (!root) {
-      throw new Error(`${this.name} requires a linked local repository path.`);
+      throw new Error(`${this.name} requires a prepared local repository path.`);
     }
     const git = gitClient(root);
 

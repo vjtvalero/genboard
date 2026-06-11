@@ -8,6 +8,7 @@ export interface ActivityEventClient {
   id: string;
   kind: string;
   actorMode: string;
+  actorLogin?: string | null;
   detail: string;
   createdAt: string;
 }
@@ -70,6 +71,9 @@ export default function ActivityTrail({
               </span>
               <span className="flex-1 text-neutral-300">
                 {ACTIVITY_LABEL[e.kind as ActivityKind] ?? e.kind}
+                {e.actorLogin && (
+                  <span className="text-neutral-500"> by @{e.actorLogin}</span>
+                )}
                 {e.detail && <span className="text-neutral-500"> — {e.detail}</span>}
               </span>
               <span className="shrink-0 text-xs text-neutral-600">{timeAgo(e.createdAt)}</span>

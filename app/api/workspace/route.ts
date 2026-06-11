@@ -1,43 +1,33 @@
-import { getSession, unauthorized, badRequest, serverError, json } from "@/lib/api";
-import { readWorkspaces, setWorkspace, removeWorkspace } from "@/lib/workspace/config";
-import { validateRepoPath } from "@/lib/git/validate";
+import { getSession, unauthorized, badRequest, json, requireRole } from "@/lib/api";
+import { readWorkspaces, workspacePathForRepo } from "@/lib/workspace/config";
 
 export const dynamic = "force-dynamic";
 
-// GET /api/workspace — current repo → path map.
+// GET /api/workspace — managed repo -> bare mirror path map for cached repos.
 export async function GET() {
   const session = await getSession();
   if (!session) return unauthorized();
   return json({ workspaces: await readWorkspaces() });
 }
 
-// POST /api/workspace — { repoFullName, localPath } to link, or { repoFullName, remove: true }.
+// POST /api/workspace — manual path linking is no longer supported.
 export async function POST(req: Request) {
-  const session = await getSession();
-  if (!session) return unauthorized();
+  const ctx = await requireRole(["admin"]);
+  if (ctx instanceof Response) return ctx;
 
-  let body: { repoFullName?: string; localPath?: string; remove?: boolean };
+  let body: { repoFullName?: string };
   try {
     body = await req.json();
   } catch {
     return badRequest("Invalid JSON body");
   }
 
-  const { repoFullName, localPath, remove } = body;
+  const { repoFullName } = body;
   if (!repoFullName) return badRequest("repoFullName is required");
 
-  try {
-    if (remove) {
-      return json({ workspaces: await removeWorkspace(repoFullName) });
-    }
-    if (!localPath) return badRequest("localPath is required");
-
-    const check = await validateRepoPath(localPath);
-    if (!check.ok || !check.absPath) {
-      return badRequest(check.reason ?? "Invalid path");
-    }
-    return json({ workspaces: await setWorkspace(repoFullName, check.absPath) });
-  } catch (err) {
-    return serverError((err as Error).message);
-  }
+  return json({
+    ok: false,
+    error: "Genboard now manages git mirrors and worktrees automatically under ~/.genboard.",
+    localPath: workspacePathForRepo(repoFullName),
+  }, { status: 410 });
 }

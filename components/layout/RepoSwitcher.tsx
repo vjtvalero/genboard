@@ -50,7 +50,7 @@ export default function RepoSwitcher({ selectedRepo }: { selectedRepo: string | 
       </option>
       {repos.map((r) => (
         <option key={r.fullName} value={r.fullName}>
-          {r.linkedPath ? "● " : "○ "}
+          {r.cloned ? "● " : "○ "}
           {r.fullName}
         </option>
       ))}

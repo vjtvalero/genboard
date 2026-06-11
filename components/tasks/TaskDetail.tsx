@@ -11,6 +11,7 @@ import ActivityTrail, { type ActivityEventClient } from "./ActivityTrail";
 interface TaskProp {
   id: string;
   repoFullName: string;
+  branchName: string;
   title: string;
   prompt: string;
   status: TaskStatus;
@@ -40,6 +41,42 @@ export default function TaskDetail({
   useEffect(() => {
     termRef.current?.scrollTo({ top: termRef.current.scrollHeight });
   }, [stream]);
+
+  useEffect(() => {
+    if (task.status !== "running") return;
+    let cancelled = false;
+    setExecuting(true);
+    setStream("");
+
+    readSSE(
+      `/api/tasks/${task.id}/execute`,
+      null,
+      (e) => {
+        if (cancelled) return;
+        if (e.type === "token") setStream((s) => s + e.text);
+        else if (e.type === "status") setStream((s) => s + `\n[ ${e.message} ]\n`);
+        else if (e.type === "done") {
+          setResultId(e.resultId);
+          setStatus("in_review");
+          setStream((s) => s + `\n[ ✓ done — result ${e.resultId} ]\n`);
+        } else if (e.type === "error") {
+          setError(e.message);
+          setStatus("failed");
+          setStream((s) => s + `\n[ ✗ error: ${e.message} ]\n`);
+        }
+      },
+      { method: "GET" },
+    ).finally(() => {
+      if (!cancelled) {
+        setExecuting(false);
+        router.refresh();
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [router, task.id, task.status]);
 
   const dirty = prompt !== task.prompt;
 
@@ -93,6 +130,8 @@ export default function TaskDetail({
           </Link>
           <span>·</span>
           <span>{task.repoFullName}</span>
+          <span>·</span>
+          <span>{task.branchName}</span>
         </div>
         <div className="flex items-start justify-between gap-4">
           <h1 className="text-xl font-semibold">{task.title}</h1>

@@ -1,4 +1,4 @@
-import { getSession, unauthorized, badRequest, serverError, json } from "@/lib/api";
+import { getSession, unauthorized, badRequest, serverError, json, requireRole } from "@/lib/api";
 import { getAISettings, setAISettings, availableProviders } from "@/lib/ai/config";
 import { CATALOG, isValidSettings } from "@/lib/ai/catalog";
 
@@ -17,8 +17,8 @@ export async function GET() {
 
 // PUT /api/ai-config — { provider, model, effort } global default.
 export async function PUT(req: Request) {
-  const session = await getSession();
-  if (!session) return unauthorized();
+  const ctx = await requireRole(["admin"]);
+  if (ctx instanceof Response) return ctx;
 
   let body: unknown;
   try {

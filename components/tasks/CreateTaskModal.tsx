@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { Priority } from "@/types";
+import type { Priority, RepoBranch } from "@/types";
 import { ALL_PRIORITIES, PRIORITY_LABEL } from "@/lib/labels";
 
 export default function CreateTaskModal({
@@ -16,8 +16,42 @@ export default function CreateTaskModal({
   const [title, setTitle] = useState("");
   const [prompt, setPrompt] = useState("");
   const [priority, setPriority] = useState<Priority>("medium");
+  const [branches, setBranches] = useState<RepoBranch[]>([]);
+  const [branchName, setBranchName] = useState("");
+  const [loadingBranches, setLoadingBranches] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const [owner, name] = repo.split("/");
+    setLoadingBranches(true);
+    fetch(`/api/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/branches`)
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "Failed to load branches");
+        return data as { branches: RepoBranch[]; defaultBranch: string };
+      })
+      .then((data) => {
+        if (cancelled) return;
+        setBranches(data.branches);
+        const names = data.branches.map((b) => b.name);
+        setBranchName(
+          names.includes(data.defaultBranch)
+            ? data.defaultBranch
+            : names[0] ?? "",
+        );
+      })
+      .catch((e) => {
+        if (!cancelled) setError((e as Error).message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingBranches(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [repo]);
 
   async function submit() {
     setError(null);
@@ -25,12 +59,16 @@ export default function CreateTaskModal({
       setError("Title and prompt are required.");
       return;
     }
+    if (!branchName) {
+      setError("Select a branch.");
+      return;
+    }
     setSubmitting(true);
     try {
       const res = await fetch("/api/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ repoFullName: repo, title, prompt, priority }),
+        body: JSON.stringify({ repoFullName: repo, branchName, title, prompt, priority }),
       });
       if (!res.ok) throw new Error((await res.json()).error ?? "Failed to create task");
       onClose();
@@ -53,6 +91,24 @@ export default function CreateTaskModal({
       >
         <h2 className="text-lg font-semibold">New task</h2>
         <p className="mt-1 text-xs text-neutral-500">{repo}</p>
+
+        <label className="mt-4 block text-sm font-medium text-neutral-300">Branch</label>
+        <select
+          value={branchName}
+          onChange={(e) => setBranchName(e.target.value)}
+          disabled={loadingBranches || branches.length === 0}
+          className="mt-1 w-full rounded-md border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-neutral-500 disabled:opacity-50"
+        >
+          <option value="" disabled>
+            {loadingBranches ? "Loading branches..." : "Select a branch..."}
+          </option>
+          {branches.map((branch) => (
+            <option key={branch.name} value={branch.name}>
+              {branch.name}
+              {branch.protected ? " (protected)" : ""}
+            </option>
+          ))}
+        </select>
 
         <label className="mt-4 block text-sm font-medium text-neutral-300">Title</label>
         <input
@@ -98,7 +154,7 @@ export default function CreateTaskModal({
           </button>
           <button
             onClick={submit}
-            disabled={submitting}
+            disabled={submitting || loadingBranches || !branchName}
             className="accent-bg rounded-md px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
           >
             {submitting ? "Creating…" : "Create task"}

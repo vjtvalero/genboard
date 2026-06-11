@@ -1,7 +1,7 @@
-import { getSession, unauthorized, notFound } from "@/lib/api";
+import { forbidden, notFound, requireUser } from "@/lib/api";
 import { prisma } from "@/lib/db";
-import { getMode } from "@/lib/mode";
 import { logActivity } from "@/lib/activity";
+import { userCanAccessRepository } from "@/lib/repositories";
 import { getProvider } from "@/lib/ai/registry";
 import { sseResponse } from "@/lib/sse";
 import type { AIReviewRequest, DiffFile, StreamEvent } from "@/types";
@@ -11,14 +11,18 @@ export const maxDuration = 300;
 
 // POST /api/results/[resultId]/ai-review — SSE stream the AI critique; cache it.
 export async function POST(_req: Request, { params }: { params: { resultId: string } }) {
-  const session = await getSession();
-  if (!session) return unauthorized();
+  const ctx = await requireUser();
+  if (ctx instanceof Response) return ctx;
+  const userId = ctx.user.id;
 
   const result = await prisma.result.findUnique({
     where: { id: params.resultId },
     include: { task: true },
   });
   if (!result) return notFound("Result not found");
+  if (!(await userCanAccessRepository(ctx.user, result.task.repoFullName))) {
+    return forbidden("You do not have access to this repository.");
+  }
 
   let diff: DiffFile[] = [];
   try {
@@ -53,8 +57,9 @@ export async function POST(_req: Request, { params }: { params: { resultId: stri
       await logActivity(
         result!.taskId,
         "ai_reviewed",
-        getMode(),
+        "se",
         `${review.findings.length} finding(s)`,
+        userId,
       );
 
       yield { type: "review_done", resultId: result!.id, review };

@@ -1,4 +1,5 @@
 import { gitClient } from "./client";
+import { runGitAuthenticated } from "@/lib/workspace/config";
 
 export interface CommitResult {
   commitSha: string;
@@ -13,6 +14,7 @@ export interface CommitResult {
 export async function stageCommitPush(
   repoPath: string,
   message: string,
+  token?: string,
 ): Promise<CommitResult> {
   const git = gitClient(repoPath);
 
@@ -31,7 +33,11 @@ export async function stageCommitPush(
 
   let pushed = false;
   try {
-    await git.push("origin", branch);
+    if (token) {
+      await runGitAuthenticated(repoPath, ["push", "origin", branch], token);
+    } else {
+      await git.push("origin", branch);
+    }
     pushed = true;
   } catch (err) {
     // Surface push failures but keep the local commit.
@@ -41,4 +47,42 @@ export async function stageCommitPush(
   }
 
   return { commitSha, pushed, branch };
+}
+
+/**
+ * Move the pending working-tree changes onto a generated branch, commit them,
+ * and push that branch to origin. The caller is responsible for opening a PR.
+ */
+export async function stageCommitPushBranch(
+  repoPath: string,
+  branch: string,
+  message: string,
+  token: string,
+): Promise<CommitResult> {
+  const git = gitClient(repoPath);
+
+  const status = await git.status();
+  if (status.files.length === 0) {
+    throw new Error("Nothing to commit — working tree is clean.");
+  }
+
+  await git.checkout(["-B", branch]);
+  await git.add(["-A"]);
+  await git.commit(message);
+
+  const commitSha = (await git.revparse(["HEAD"])).trim();
+
+  try {
+    await runGitAuthenticated(
+      repoPath,
+      ["push", "--set-upstream", "origin", branch],
+      token,
+    );
+  } catch (err) {
+    throw new Error(
+      `Committed locally (${commitSha.slice(0, 7)}) but push failed: ${(err as Error).message}`,
+    );
+  }
+
+  return { commitSha, pushed: true, branch };
 }

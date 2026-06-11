@@ -1,153 +1,72 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { RepoSummary } from "@/types";
+import type { RepoSummary, UserRole, UserSummary } from "@/types";
 
 interface AIConfig {
   settings: { provider: string; model: string; effort: string | null };
   catalog: { name: string; label: string; envKey: string | null }[];
   available: Record<string, boolean>;
 }
+
 interface Limits {
   maxFiles: number;
   maxFileBytes: number;
   maxTotalBytes: number;
 }
 
-function RepoRow({
-  repo,
-  onChange,
-}: {
-  repo: RepoSummary;
-  onChange: () => void;
-}) {
-  const [path, setPath] = useState(repo.linkedPath ?? "");
-  const [status, setStatus] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+interface UsersPayload {
+  currentUser: UserSummary;
+  users: UserSummary[];
+}
 
-  async function validate() {
-    setBusy(true);
-    setStatus(null);
-    try {
-      const res = await fetch("/api/workspace/validate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ localPath: path }),
-      });
-      const data = await res.json();
-      setStatus(data.ok ? "✓ Valid git repository" : `✗ ${data.reason}`);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function save() {
-    setBusy(true);
-    setStatus(null);
-    try {
-      const res = await fetch("/api/workspace", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ repoFullName: repo.fullName, localPath: path }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setStatus(`✗ ${data.error}`);
-      } else {
-        setStatus("✓ Linked");
-        onChange();
-      }
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function unlink() {
-    setBusy(true);
-    try {
-      await fetch("/api/workspace", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ repoFullName: repo.fullName, remove: true }),
-      });
-      setPath("");
-      setStatus(null);
-      onChange();
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <li className="rounded-lg border border-neutral-800 bg-neutral-900/40 p-3">
-      <div className="flex items-center gap-2">
-        <span className={repo.linkedPath ? "text-emerald-400" : "text-neutral-600"}>●</span>
-        <span className="font-mono text-sm">{repo.fullName}</span>
-        {repo.private && (
-          <span className="rounded bg-neutral-800 px-1.5 py-0.5 text-[10px] text-neutral-400">
-            private
-          </span>
-        )}
-      </div>
-      <div className="mt-2 flex flex-wrap gap-2">
-        <input
-          value={path}
-          onChange={(e) => setPath(e.target.value)}
-          placeholder="C:\path\to\local\clone"
-          className="min-w-[280px] flex-1 rounded-md border border-neutral-700 bg-neutral-950 px-2.5 py-1.5 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-neutral-500"
-        />
-        <button
-          onClick={validate}
-          disabled={busy || !path}
-          className="rounded-md border border-neutral-700 px-2.5 py-1.5 text-xs hover:bg-neutral-800 disabled:opacity-50"
-        >
-          Validate
-        </button>
-        <button
-          onClick={save}
-          disabled={busy || !path}
-          className="accent-bg rounded-md px-2.5 py-1.5 text-xs font-medium text-white disabled:opacity-50"
-        >
-          Save
-        </button>
-        {repo.linkedPath && (
-          <button
-            onClick={unlink}
-            disabled={busy}
-            className="rounded-md border border-neutral-700 px-2.5 py-1.5 text-xs text-rose-300 hover:bg-neutral-800 disabled:opacity-50"
-          >
-            Unlink
-          </button>
-        )}
-      </div>
-      {status && <p className="mt-1.5 text-xs text-neutral-400">{status}</p>}
-    </li>
-  );
+interface ReposPayload {
+  repos: RepoSummary[];
 }
 
 export default function SettingsClient() {
-  const [repos, setRepos] = useState<RepoSummary[]>([]);
   const [ai, setAi] = useState<AIConfig | null>(null);
   const [limits, setLimits] = useState<Limits | null>(null);
+  const [usersPayload, setUsersPayload] = useState<UsersPayload | null>(null);
+  const [availableRepos, setAvailableRepos] = useState<RepoSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [usersLoading, setUsersLoading] = useState(true);
+  const [reposLoading, setReposLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState("");
+  const [userError, setUserError] = useState<string | null>(null);
+  const [repoError, setRepoError] = useState<string | null>(null);
 
   async function load() {
+    setLoading(true);
+    setError(null);
     try {
-      const [reposRes, aiRes, cfgRes] = await Promise.all([
-        fetch("/api/repos"),
+      const [aiRes, cfgRes] = await Promise.all([
         fetch("/api/ai-config"),
         fetch("/api/config"),
       ]);
-      if (!reposRes.ok) throw new Error((await reposRes.json()).error ?? "Failed to load repos");
-      setRepos((await reposRes.json()).repos ?? []);
-      if (aiRes.ok) setAi(await aiRes.json());
+      if (!aiRes.ok) throw new Error((await aiRes.json()).error ?? "Failed to load AI config");
+      setAi(await aiRes.json());
       if (cfgRes.ok) setLimits((await cfgRes.json()).limits ?? null);
+
+      const usersRes = await fetch("/api/users");
+      if (usersRes.ok) {
+        setUsersPayload(await usersRes.json());
+        const reposRes = await fetch("/api/repos/available");
+        if (reposRes.ok) {
+          const reposPayload = (await reposRes.json()) as ReposPayload;
+          setAvailableRepos(reposPayload.repos ?? []);
+        } else {
+          setRepoError((await reposRes.json()).error ?? "Failed to load repositories");
+        }
+      } else if (usersRes.status !== 403) {
+        setUserError((await usersRes.json()).error ?? "Failed to load users");
+      }
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setLoading(false);
+      setUsersLoading(false);
+      setReposLoading(false);
     }
   }
 
@@ -155,18 +74,128 @@ export default function SettingsClient() {
     load();
   }, []);
 
-  const filtered = repos.filter((r) =>
-    r.fullName.toLowerCase().includes(filter.toLowerCase()),
-  );
+  async function updateRole(userId: string, role: UserRole) {
+    setUserError(null);
+    const previous = usersPayload;
+    if (previous) {
+      setUsersPayload({
+        ...previous,
+        users: previous.users.map((u) => (u.id === userId ? { ...u, role } : u)),
+      });
+    }
+
+    const res = await fetch(`/api/users/${userId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      if (previous) setUsersPayload(previous);
+      setUserError(data.error ?? "Failed to update role");
+      return;
+    }
+    if (previous) {
+      setUsersPayload({
+        ...previous,
+        users: previous.users.map((u) => (u.id === userId ? data.user : u)),
+      });
+    }
+  }
+
+  function repoUrl(repo: RepoSummary, suffix = "") {
+    return `/api/repos/${encodeURIComponent(repo.owner)}/${encodeURIComponent(repo.name)}${suffix}`;
+  }
+
+  async function enableRepo(repo: RepoSummary) {
+    setRepoError(null);
+    const res = await fetch("/api/repos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ repoFullName: repo.fullName }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setRepoError(data.error ?? "Failed to enable repository");
+      return;
+    }
+    setAvailableRepos((prev) =>
+      prev.map((item) =>
+        item.fullName === repo.fullName
+          ? {
+              ...item,
+              id: data.repository.id,
+              enabled: true,
+              membershipUserIds: Array.from(
+                new Set([...(item.membershipUserIds ?? []), usersPayload?.currentUser.id ?? ""]),
+              ).filter(Boolean),
+            }
+          : item,
+      ),
+    );
+  }
+
+  async function setRepoEnabled(repo: RepoSummary, enabled: boolean) {
+    setRepoError(null);
+    const previous = availableRepos;
+    setAvailableRepos((prev) =>
+      prev.map((item) =>
+        item.fullName === repo.fullName ? { ...item, enabled } : item,
+      ),
+    );
+    const res = await fetch(repoUrl(repo), {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setAvailableRepos(previous);
+      setRepoError(data.error ?? "Failed to update repository");
+    }
+  }
+
+  async function toggleRepoAccess(repo: RepoSummary, userId: string, access: boolean) {
+    setRepoError(null);
+    const previous = availableRepos;
+    setAvailableRepos((prev) =>
+      prev.map((item) => {
+        if (item.fullName !== repo.fullName) return item;
+        const ids = new Set(item.membershipUserIds ?? []);
+        if (access) ids.add(userId);
+        else ids.delete(userId);
+        return { ...item, membershipUserIds: Array.from(ids) };
+      }),
+    );
+    const res = await fetch(repoUrl(repo, "/members"), {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId, access }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setAvailableRepos(previous);
+      setRepoError(data.error ?? "Failed to update repository access");
+      return;
+    }
+    setAvailableRepos((prev) =>
+      prev.map((item) =>
+        item.fullName === repo.fullName
+          ? { ...item, membershipUserIds: data.membershipUserIds ?? [] }
+          : item,
+      ),
+    );
+  }
 
   return (
     <div className="mx-auto max-w-3xl p-6">
       <h1 className="text-xl font-semibold">Settings</h1>
 
-      {/* AI config — selection lives in the top-nav switcher; this is a summary */}
       <section className="mt-5 rounded-lg border border-neutral-800 bg-neutral-900/40 p-4">
         <h2 className="text-sm font-semibold">AI Provider</h2>
-        {ai ? (
+        {loading && <p className="mt-2 text-xs text-neutral-500">Loading...</p>}
+        {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
+        {ai && (
           <>
             <dl className="mt-2 grid grid-cols-2 gap-y-1 text-sm">
               <dt className="text-neutral-500">Active</dt>
@@ -201,40 +230,136 @@ export default function SettingsClient() {
               ))}
             </ul>
           </>
-        ) : (
-          <p className="mt-2 text-xs text-neutral-500">Loading…</p>
         )}
         <p className="mt-2 text-xs text-neutral-500">
           Switch provider / model / effort from the top-nav controls. API keys live
           in <code>.env.local</code>; restart the dev server after changing them.
         </p>
-      </section>
-
-      {/* Repo → local path mappings */}
-      <section className="mt-6">
-        <div className="mb-2 flex items-center justify-between">
-          <h2 className="text-sm font-semibold">Linked Repositories</h2>
-          <input
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            placeholder="Filter…"
-            className="rounded-md border border-neutral-700 bg-neutral-950 px-2.5 py-1 text-xs focus:outline-none"
-          />
-        </div>
-        <p className="mb-3 text-xs text-neutral-500">
-          Link each GitHub repo to a local clone. Genboard reads and writes files
-          there; commits and pushes use that working tree.
+        <p className="mt-2 text-xs text-neutral-500">
+          Repositories are cached as bare mirrors in <code>~/.genboard/repos</code>;
+          each task run gets an isolated worktree in <code>~/.genboard/worktrees</code>.
         </p>
-
-        {loading && <p className="text-sm text-neutral-500">Loading repositories…</p>}
-        {error && <p className="text-sm text-red-400">{error}</p>}
-
-        <ul className="space-y-2">
-          {filtered.map((r) => (
-            <RepoRow key={r.fullName} repo={r} onChange={load} />
-          ))}
-        </ul>
       </section>
+
+      {usersPayload && (
+        <section className="mt-6 rounded-lg border border-neutral-800 bg-neutral-900/40 p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold">Repositories</h2>
+            <span className="rounded bg-neutral-800 px-2 py-0.5 text-xs text-neutral-400">
+              admin
+            </span>
+          </div>
+          {repoError && <p className="mb-2 text-sm text-red-400">{repoError}</p>}
+          {reposLoading ? (
+            <p className="text-xs text-neutral-500">Loading repositories...</p>
+          ) : (
+            <ul className="divide-y divide-neutral-800">
+              {availableRepos.map((repo) => {
+                const memberIds = new Set(repo.membershipUserIds ?? []);
+                const localStatus = repo.cloned ? "cached locally" : "not cached yet";
+                return (
+                  <li key={repo.fullName} className="py-3">
+                    <div className="flex items-center gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate font-mono text-sm">{repo.fullName}</div>
+                        <div className="text-xs text-neutral-500">
+                          {repo.private ? "private" : "public"} · default {repo.defaultBranch} · {localStatus}
+                        </div>
+                      </div>
+                      {repo.enabled ? (
+                        <button
+                          onClick={() => setRepoEnabled(repo, false)}
+                          className="rounded-md border border-neutral-700 px-2.5 py-1.5 text-xs text-neutral-300 hover:bg-neutral-800"
+                        >
+                          Disable
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => enableRepo(repo)}
+                          className="accent-bg rounded-md px-2.5 py-1.5 text-xs font-medium text-white"
+                        >
+                          Enable
+                        </button>
+                      )}
+                    </div>
+                    {repo.enabled && (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {usersPayload.users.map((user) => (
+                          <label
+                            key={user.id}
+                            className="inline-flex items-center gap-1.5 rounded bg-neutral-950 px-2 py-1 text-xs text-neutral-300"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={user.role === "admin" || memberIds.has(user.id)}
+                              disabled={user.role === "admin"}
+                              onChange={(e) => toggleRepoAccess(repo, user.id, e.target.checked)}
+                            />
+                            @{user.githubLogin}
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          <p className="mt-2 text-xs text-neutral-500">
+            Enabled repositories appear in the repo switcher for admins and assigned users.
+            Repo operations use your local Genboard session and managed cache.
+          </p>
+        </section>
+      )}
+
+      {usersPayload && (
+        <section className="mt-6 rounded-lg border border-neutral-800 bg-neutral-900/40 p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold">Users</h2>
+            <span className="rounded bg-neutral-800 px-2 py-0.5 text-xs text-neutral-400">
+              admin
+            </span>
+          </div>
+          {userError && <p className="mb-2 text-sm text-red-400">{userError}</p>}
+          {usersLoading ? (
+            <p className="text-xs text-neutral-500">Loading users...</p>
+          ) : (
+            <ul className="divide-y divide-neutral-800">
+              {usersPayload.users.map((user) => (
+                <li key={user.id} className="flex items-center gap-3 py-3">
+                  {user.avatarUrl && (
+                    <img
+                      src={user.avatarUrl}
+                      alt=""
+                      className="h-8 w-8 rounded-full bg-neutral-800"
+                    />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-medium">
+                      @{user.githubLogin}
+                    </div>
+                    <div className="truncate text-xs text-neutral-500">
+                      {user.name ?? user.email ?? "No profile details"}
+                    </div>
+                  </div>
+                  <select
+                    value={user.role}
+                    onChange={(e) => updateRole(user.id, e.target.value as UserRole)}
+                    className="rounded-md border border-neutral-700 bg-neutral-950 px-2.5 py-1.5 text-xs focus:outline-none"
+                  >
+                    <option value="pm">PM</option>
+                    <option value="se">SE</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="mt-2 text-xs text-neutral-500">
+            Users appear here after they sign in with GitHub.
+          </p>
+        </section>
+      )}
     </div>
   );
 }
