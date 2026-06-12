@@ -72,7 +72,7 @@ model Task {
   title           String
   prompt          String
   status          String   @default("backlog")
-  // backlog | running | executed | in_review | changes_requested | approved | pr_opened | pushed | failed
+  // backlog | running | executed | in_review | changes_requested | approved | pr_opened | merged | pushed | failed
   priority        String   @default("medium") // low | medium | high | urgent
   order           Int      @default(0) // manual backlog ordering within a repo
   latestResultId  String?
@@ -141,6 +141,7 @@ model Result {
   prNumber     Int?
   prUrl        String?
   prBranch     String?
+  prMergedAt   DateTime? // set once the PR is observed merged on GitHub
   worktreePath String?
   rawText      String   @default("")
   createdAt    DateTime @default(now())

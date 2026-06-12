@@ -11,6 +11,7 @@ export default function ApproveBar({
   initialCommitSha,
   initialPrNumber,
   initialPrUrl,
+  prMerged = false,
 }: {
   resultId: string;
   taskTitle: string;
@@ -18,6 +19,7 @@ export default function ApproveBar({
   initialCommitSha: string | null;
   initialPrNumber: number | null;
   initialPrUrl: string | null;
+  prMerged?: boolean;
 }) {
   const router = useRouter();
   const [commitMessage, setCommitMessage] = useState(`genboard: ${taskTitle}`);
@@ -70,14 +72,26 @@ export default function ApproveBar({
   }
 
   if (opened) {
+    const tone = prMerged
+      ? "border-purple-600/50 bg-purple-900/20"
+      : "border-emerald-700/50 bg-emerald-900/20";
+    const headTone = prMerged ? "text-purple-300" : "text-emerald-300";
+    const linkTone = prMerged ? "text-purple-400" : "text-emerald-400";
     return (
-      <div className="rounded-lg border border-emerald-700/50 bg-emerald-900/20 p-4">
-        <div className="text-sm font-medium text-emerald-300">Pull request opened</div>
+      <div className={`rounded-lg border p-4 ${tone}`}>
+        <div className={`text-sm font-medium ${headTone}`}>
+          {prMerged ? "Pull request merged ✓" : "Pull request opened"}
+        </div>
+        {prMerged && (
+          <p className="mt-1 text-xs text-neutral-400">
+            This task is complete — the PR has been merged on GitHub.
+          </p>
+        )}
         <a
           href={prUrl}
           target="_blank"
           rel="noreferrer"
-          className="mt-1 inline-block font-mono text-xs text-emerald-400 underline"
+          className={`mt-1 inline-block font-mono text-xs underline ${linkTone}`}
         >
           #{prNumber ?? "PR"} — view on GitHub →
         </a>

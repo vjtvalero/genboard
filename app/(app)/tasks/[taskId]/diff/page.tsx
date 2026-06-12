@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getUserByLogin } from "@/lib/users";
 import { userCanAccessRepository } from "@/lib/repositories";
+import { syncPrMergeState } from "@/lib/github/merge";
 import DiffWorkspace from "@/components/diff/DiffWorkspace";
 import type { AIReview, DiffFile, ReviewComment, ReviewStatus } from "@/types";
 
@@ -51,6 +52,20 @@ export default async function DiffPage({
     );
   }
 
+  // Reconcile the PR's merge state with GitHub so a merge-then-reload flips the
+  // task to "merged" automatically. Best-effort; no-op once already merged.
+  const prMergedAt = await syncPrMergeState(
+    {
+      id: result.id,
+      taskId: result.taskId,
+      prNumber: result.prNumber,
+      prMergedAt: result.prMergedAt,
+      task: { repoFullName: task.repoFullName, status: task.status },
+    },
+    session?.accessToken,
+    user.id,
+  );
+
   let diff: DiffFile[] = [];
   let aiReview: AIReview | null = null;
   let comments: ReviewComment[] = [];
@@ -86,6 +101,7 @@ export default async function DiffPage({
       initialCommitSha={result.commitSha}
       initialPrNumber={result.prNumber}
       initialPrUrl={result.prUrl}
+      initialPrMerged={prMergedAt != null}
     />
   );
 }

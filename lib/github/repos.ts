@@ -111,3 +111,28 @@ export async function createPullRequest(
     htmlUrl: data.html_url,
   };
 }
+
+export interface PullRequestState {
+  state: "open" | "closed";
+  merged: boolean;
+  mergedAt: Date | null;
+}
+
+/** Fetch the current open/closed + merged state of a pull request. */
+export async function getPullRequestState(
+  token: string,
+  repoFullName: string,
+  prNumber: number,
+): Promise<PullRequestState> {
+  const [owner, repo] = repoFullName.split("/");
+  if (!owner || !repo) throw new Error(`Invalid repo name: ${repoFullName}`);
+
+  const octokit = octokitFromToken(token);
+  const { data } = await octokit.pulls.get({ owner, repo, pull_number: prNumber });
+
+  return {
+    state: data.state as "open" | "closed",
+    merged: Boolean(data.merged),
+    mergedAt: data.merged_at ? new Date(data.merged_at) : null,
+  };
+}

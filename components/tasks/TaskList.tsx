@@ -17,6 +17,7 @@ const GROUPS: { key: string; label: string; statuses: TaskStatus[] }[] = [
   { key: "attention", label: "Needs Attention", statuses: ["changes_requested", "failed"] },
   { key: "active", label: "In Progress", statuses: ["running", "executed", "in_review"] },
   { key: "done", label: "Done", statuses: ["approved", "pr_opened", "pushed"] },
+  { key: "completed", label: "Completed", statuses: ["merged"] },
 ];
 
 export default function TaskList({ tasks, repo }: { tasks: TaskCard[]; repo: string }) {

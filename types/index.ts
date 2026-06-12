@@ -15,6 +15,7 @@ export type TaskStatus =
   | "changes_requested"
   | "approved"
   | "pr_opened"
+  | "merged"
   | "pushed"
   | "failed";
 
@@ -31,6 +32,7 @@ export type ActivityKind =
   | "approved"
   | "changes_requested"
   | "pr_opened"
+  | "merged"
   | "pushed"
   | "reordered"
   | "rolled_back"

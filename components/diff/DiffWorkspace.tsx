@@ -20,6 +20,7 @@ export default function DiffWorkspace({
   initialCommitSha,
   initialPrNumber,
   initialPrUrl,
+  initialPrMerged,
 }: {
   resultId: string;
   taskId: string;
@@ -33,6 +34,7 @@ export default function DiffWorkspace({
   initialCommitSha: string | null;
   initialPrNumber: number | null;
   initialPrUrl: string | null;
+  initialPrMerged: boolean;
 }) {
   const [aiReview, setAiReview] = useState<AIReview | null>(initialAiReview);
   const [reviewStatus, setReviewStatus] = useState<ReviewStatus>(initialReviewStatus);
@@ -72,6 +74,7 @@ export default function DiffWorkspace({
             initialCommitSha={initialCommitSha}
             initialPrNumber={initialPrNumber}
             initialPrUrl={initialPrUrl}
+            prMerged={initialPrMerged}
           />
         </div>
       </div>

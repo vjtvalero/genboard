@@ -8,6 +8,7 @@ export const STATUS_LABEL: Record<TaskStatus, string> = {
   changes_requested: "Changes Requested",
   approved: "Approved",
   pr_opened: "PR Opened",
+  merged: "Merged",
   pushed: "Pushed",
   failed: "Failed",
 };
@@ -21,6 +22,7 @@ export const STATUS_CLASS: Record<TaskStatus, string> = {
   changes_requested: "bg-rose-500/20 text-rose-300",
   approved: "bg-emerald-500/20 text-emerald-300",
   pr_opened: "bg-emerald-600/30 text-emerald-200",
+  merged: "bg-purple-600/30 text-purple-200",
   pushed: "bg-emerald-600/30 text-emerald-200",
   failed: "bg-red-600/30 text-red-300",
 };
@@ -60,6 +62,7 @@ export const ACTIVITY_LABEL: Record<ActivityKind, string> = {
   approved: "approved the result",
   changes_requested: "requested changes",
   pr_opened: "opened a pull request",
+  merged: "merged the pull request",
   pushed: "pushed to origin",
   reordered: "reordered the backlog",
   rolled_back: "rolled back changes",
