@@ -20,6 +20,23 @@ interface UsersPayload {
   users: UserSummary[];
 }
 
+interface KeyStatus {
+  provider: string;
+  label: string;
+  envKey: string | null;
+  source: "stored" | "env" | "none";
+  masked: string | null;
+}
+
+interface CliStatus {
+  provider: string;
+  label: string;
+  command: string;
+  source: "stored" | "env" | "path" | "none";
+  resolvedPath: string | null;
+  override: string | null;
+}
+
 interface ReposPayload {
   repos: RepoSummary[];
 }
@@ -28,6 +45,16 @@ export default function SettingsClient() {
   const [ai, setAi] = useState<AIConfig | null>(null);
   const [limits, setLimits] = useState<Limits | null>(null);
   const [usersPayload, setUsersPayload] = useState<UsersPayload | null>(null);
+  const [keys, setKeys] = useState<KeyStatus[] | null>(null);
+  const [keyDrafts, setKeyDrafts] = useState<Record<string, string>>({});
+  const [keyBusy, setKeyBusy] = useState<string | null>(null);
+  const [keyError, setKeyError] = useState<string | null>(null);
+  const [keyTesting, setKeyTesting] = useState<string | null>(null);
+  const [keyTests, setKeyTests] = useState<Record<string, { ok: boolean; message: string }>>({});
+  const [clis, setClis] = useState<CliStatus[] | null>(null);
+  const [cliDrafts, setCliDrafts] = useState<Record<string, string>>({});
+  const [cliBusy, setCliBusy] = useState<string | null>(null);
+  const [cliError, setCliError] = useState<string | null>(null);
   const [availableRepos, setAvailableRepos] = useState<RepoSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [usersLoading, setUsersLoading] = useState(true);
@@ -51,6 +78,10 @@ export default function SettingsClient() {
       const usersRes = await fetch("/api/users");
       if (usersRes.ok) {
         setUsersPayload(await usersRes.json());
+        const keysRes = await fetch("/api/ai-keys");
+        if (keysRes.ok) setKeys((await keysRes.json()).keys ?? []);
+        const clisRes = await fetch("/api/cli-paths");
+        if (clisRes.ok) setClis((await clisRes.json()).clis ?? []);
         const reposRes = await fetch("/api/repos/available");
         if (reposRes.ok) {
           const reposPayload = (await reposRes.json()) as ReposPayload;
@@ -100,6 +131,75 @@ export default function SettingsClient() {
         ...previous,
         users: previous.users.map((u) => (u.id === userId ? data.user : u)),
       });
+    }
+  }
+
+  async function saveKey(provider: string, key: string) {
+    setKeyError(null);
+    setKeyBusy(provider);
+    try {
+      const res = await fetch("/api/ai-keys", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider, key }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to save key");
+      setKeys(data.keys ?? null);
+      setKeyDrafts((prev) => ({ ...prev, [provider]: "" }));
+      // Reflect new availability in the top-nav switcher and provider list.
+      load();
+    } catch (e) {
+      setKeyError((e as Error).message);
+    } finally {
+      setKeyBusy(null);
+    }
+  }
+
+  async function testKey(provider: string, draft: string) {
+    setKeyTesting(provider);
+    setKeyTests((prev) => {
+      const next = { ...prev };
+      delete next[provider];
+      return next;
+    });
+    try {
+      const res = await fetch("/api/ai-keys", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider, key: draft }),
+      });
+      const data = await res.json();
+      const result = res.ok
+        ? data.result
+        : { ok: false, message: data.error ?? "Test failed" };
+      setKeyTests((prev) => ({ ...prev, [provider]: result }));
+    } catch (e) {
+      setKeyTests((prev) => ({ ...prev, [provider]: { ok: false, message: (e as Error).message } }));
+    } finally {
+      setKeyTesting(null);
+    }
+  }
+
+  async function saveCliPath(provider: string, value: string) {
+    setCliError(null);
+    setCliBusy(provider);
+    try {
+      const res = await fetch("/api/cli-paths", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider, path: value }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to save path");
+      setClis(data.clis ?? null);
+      setCliDrafts((prev) => ({ ...prev, [provider]: "" }));
+      // Reflect new availability in the top-nav switcher and provider list.
+      load();
+    } catch (e) {
+      setCliError((e as Error).message);
+    } finally {
+      setCliBusy(null);
     }
   }
 
@@ -232,14 +332,192 @@ export default function SettingsClient() {
           </>
         )}
         <p className="mt-2 text-xs text-neutral-500">
-          Switch provider / model / effort from the top-nav controls. API keys live
-          in <code>.env.local</code>; restart the dev server after changing them.
+          Switch provider / model / effort from the top-nav controls. Manage API
+          keys below; CLI providers authenticate via their own CLI login.
         </p>
         <p className="mt-2 text-xs text-neutral-500">
           Repositories are cached as bare mirrors in <code>~/.genboard/repos</code>;
           each task run gets an isolated worktree in <code>~/.genboard/worktrees</code>.
         </p>
       </section>
+
+      {keys && (
+        <section className="mt-6 rounded-lg border border-neutral-800 bg-neutral-900/40 p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold">API Keys</h2>
+            <span className="rounded bg-neutral-800 px-2 py-0.5 text-xs text-neutral-400">
+              admin
+            </span>
+          </div>
+          {keyError && <p className="mb-2 text-sm text-red-400">{keyError}</p>}
+          <ul className="divide-y divide-neutral-800">
+            {keys.map((k) => {
+              const draft = keyDrafts[k.provider] ?? "";
+              const busy = keyBusy === k.provider;
+              const testing = keyTesting === k.provider;
+              const test = keyTests[k.provider];
+              const canTest = draft.trim().length > 0 || k.source !== "none";
+              return (
+                <li key={k.provider} className="py-3">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-sm">{k.label}</span>
+                    {k.source === "stored" && (
+                      <span className="rounded bg-emerald-900/40 px-1.5 py-0.5 text-[11px] text-emerald-300">
+                        stored · {k.masked}
+                      </span>
+                    )}
+                    {k.source === "env" && (
+                      <span className="rounded bg-sky-900/40 px-1.5 py-0.5 text-[11px] text-sky-300">
+                        from {k.envKey} · {k.masked}
+                      </span>
+                    )}
+                    {k.source === "none" && (
+                      <span className="rounded bg-neutral-800 px-1.5 py-0.5 text-[11px] text-neutral-400">
+                        not set
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-2 flex items-center gap-2">
+                    <input
+                      type="password"
+                      autoComplete="off"
+                      placeholder={k.source === "stored" ? "Replace stored key…" : `Paste ${k.envKey}…`}
+                      value={draft}
+                      onChange={(e) =>
+                        setKeyDrafts((prev) => ({ ...prev, [k.provider]: e.target.value }))
+                      }
+                      className="flex-1 rounded-md border border-neutral-700 bg-neutral-950 px-3 py-1.5 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-neutral-500"
+                    />
+                    <button
+                      onClick={() => saveKey(k.provider, draft)}
+                      disabled={busy || draft.trim().length === 0}
+                      className="accent-bg rounded-md px-3 py-1.5 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      {busy ? "Saving…" : "Save"}
+                    </button>
+                    <button
+                      onClick={() => testKey(k.provider, draft)}
+                      disabled={testing || !canTest}
+                      title={canTest ? "Validate against the provider (no tokens used)" : "No key to test"}
+                      className="rounded-md border border-neutral-700 px-3 py-1.5 text-xs text-neutral-300 hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      {testing ? "Testing…" : "Test"}
+                    </button>
+                    {k.source === "stored" && (
+                      <button
+                        onClick={() => saveKey(k.provider, "")}
+                        disabled={busy}
+                        className="rounded-md border border-neutral-700 px-3 py-1.5 text-xs text-neutral-300 hover:bg-neutral-800 disabled:opacity-50"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                  {test && (
+                    <p className={`mt-1.5 text-xs ${test.ok ? "text-emerald-400" : "text-red-400"}`}>
+                      {test.ok ? "✓ " : "✗ "}
+                      {test.message}
+                    </p>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+          <p className="mt-2 text-xs text-neutral-500">
+            Stored keys are saved (gitignored) to <code>~/.genboard/secrets.json</code> and
+            override the matching environment variable. They take effect immediately — no
+            restart needed. Clearing a stored key falls back to its env var if set.
+          </p>
+        </section>
+      )}
+
+      {clis && (
+        <section className="mt-6 rounded-lg border border-neutral-800 bg-neutral-900/40 p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold">CLI Paths</h2>
+            <span className="rounded bg-neutral-800 px-2 py-0.5 text-xs text-neutral-400">
+              admin
+            </span>
+          </div>
+          {cliError && <p className="mb-2 text-sm text-red-400">{cliError}</p>}
+          <ul className="divide-y divide-neutral-800">
+            {clis.map((c) => {
+              const draft = cliDrafts[c.provider] ?? "";
+              const busy = cliBusy === c.provider;
+              return (
+                <li key={c.provider} className="py-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-mono text-sm">{c.label}</span>
+                    <code className="rounded bg-neutral-800 px-1.5 py-0.5 text-[11px] text-neutral-400">
+                      {c.command}
+                    </code>
+                    {c.source === "stored" && (
+                      <span className="rounded bg-emerald-900/40 px-1.5 py-0.5 text-[11px] text-emerald-300">
+                        pinned{c.resolvedPath ? "" : " · not found"}
+                      </span>
+                    )}
+                    {c.source === "env" && (
+                      <span className="rounded bg-sky-900/40 px-1.5 py-0.5 text-[11px] text-sky-300">
+                        from {c.command.toUpperCase()}_BIN{c.resolvedPath ? "" : " · not found"}
+                      </span>
+                    )}
+                    {c.source === "path" && (
+                      <span className="rounded bg-emerald-900/40 px-1.5 py-0.5 text-[11px] text-emerald-300">
+                        detected
+                      </span>
+                    )}
+                    {c.source === "none" && (
+                      <span className="rounded bg-amber-900/40 px-1.5 py-0.5 text-[11px] text-amber-300">
+                        not found
+                      </span>
+                    )}
+                  </div>
+                  {(c.resolvedPath || c.override) && (
+                    <div className="mt-1 truncate font-mono text-[11px] text-neutral-500">
+                      {c.resolvedPath ?? c.override}
+                    </div>
+                  )}
+                  <div className="mt-2 flex items-center gap-2">
+                    <input
+                      type="text"
+                      autoComplete="off"
+                      spellCheck={false}
+                      placeholder={`Absolute path to ${c.command}…`}
+                      value={draft}
+                      onChange={(e) =>
+                        setCliDrafts((prev) => ({ ...prev, [c.provider]: e.target.value }))
+                      }
+                      className="flex-1 rounded-md border border-neutral-700 bg-neutral-950 px-3 py-1.5 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-neutral-500"
+                    />
+                    <button
+                      onClick={() => saveCliPath(c.provider, draft)}
+                      disabled={busy || draft.trim().length === 0}
+                      className="accent-bg rounded-md px-3 py-1.5 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      {busy ? "Saving…" : "Pin"}
+                    </button>
+                    {c.source === "stored" && (
+                      <button
+                        onClick={() => saveCliPath(c.provider, "")}
+                        disabled={busy}
+                        className="rounded-md border border-neutral-700 px-3 py-1.5 text-xs text-neutral-300 hover:bg-neutral-800 disabled:opacity-50"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+          <p className="mt-2 text-xs text-neutral-500">
+            Genboard auto-detects CLIs on <code>PATH</code> (plus <code>~/.local/bin</code>
+            and the service node&apos;s bin dir). Pin an absolute path here only to override
+            that — saved to <code>~/.genboard/cli-paths.json</code>, effective immediately,
+            ahead of the <code>&lt;CMD&gt;_BIN</code> env var.
+          </p>
+        </section>
+      )}
 
       {usersPayload && (
         <section className="mt-6 rounded-lg border border-neutral-800 bg-neutral-900/40 p-4">
