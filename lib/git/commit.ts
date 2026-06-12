@@ -34,7 +34,14 @@ export async function stageCommitPush(
   let pushed = false;
   try {
     if (token) {
-      await runGitAuthenticated(repoPath, ["push", "origin", branch], token);
+      // Worktrees inherit the bare mirror's remote.origin.mirror=true, which
+      // rejects refspec pushes ("--mirror can't be combined with refspecs").
+      // Override it for this push only so a single branch can be pushed.
+      await runGitAuthenticated(
+        repoPath,
+        ["-c", "remote.origin.mirror=false", "push", "origin", branch],
+        token,
+      );
     } else {
       await git.push("origin", branch);
     }
@@ -61,21 +68,28 @@ export async function stageCommitPushBranch(
 ): Promise<CommitResult> {
   const git = gitClient(repoPath);
 
-  const status = await git.status();
-  if (status.files.length === 0) {
-    throw new Error("Nothing to commit — working tree is clean.");
-  }
-
+  // Move onto the target branch (idempotent: -B creates it or resets it to the
+  // current HEAD, preserving any pending working-tree changes).
   await git.checkout(["-B", branch]);
-  await git.add(["-A"]);
-  await git.commit(message);
+
+  // Commit pending changes if there are any. On a retry after a failed push the
+  // work is already committed and the tree is clean — skip straight to pushing
+  // rather than failing with "nothing to commit".
+  const status = await git.status();
+  if (status.files.length > 0) {
+    await git.add(["-A"]);
+    await git.commit(message);
+  }
 
   const commitSha = (await git.revparse(["HEAD"])).trim();
 
   try {
+    // Worktrees inherit the bare mirror's remote.origin.mirror=true, which
+    // rejects refspec pushes ("--mirror can't be combined with refspecs").
+    // Override it for this push only so the single branch can be pushed.
     await runGitAuthenticated(
       repoPath,
-      ["push", "--set-upstream", "origin", branch],
+      ["-c", "remote.origin.mirror=false", "push", "--set-upstream", "origin", branch],
       token,
     );
   } catch (err) {
