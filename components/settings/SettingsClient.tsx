@@ -7,6 +7,7 @@ interface AIConfig {
   settings: { provider: string; model: string; effort: string | null };
   catalog: { name: string; label: string; envKey: string | null }[];
   available: Record<string, boolean>;
+  modelsFetchedAt?: number | null;
 }
 
 interface Limits {
@@ -43,6 +44,7 @@ interface ReposPayload {
 
 export default function SettingsClient() {
   const [ai, setAi] = useState<AIConfig | null>(null);
+  const [modelsRefreshing, setModelsRefreshing] = useState(false);
   const [limits, setLimits] = useState<Limits | null>(null);
   const [usersPayload, setUsersPayload] = useState<UsersPayload | null>(null);
   const [keys, setKeys] = useState<KeyStatus[] | null>(null);
@@ -203,6 +205,21 @@ export default function SettingsClient() {
     }
   }
 
+  async function refreshModels() {
+    setError(null);
+    setModelsRefreshing(true);
+    try {
+      const res = await fetch("/api/ai-config/refresh", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to refresh models");
+      setAi((prev) => (prev ? { ...prev, ...data } : prev));
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setModelsRefreshing(false);
+    }
+  }
+
   function repoUrl(repo: RepoSummary, suffix = "") {
     return `/api/repos/${encodeURIComponent(repo.owner)}/${encodeURIComponent(repo.name)}${suffix}`;
   }
@@ -292,7 +309,24 @@ export default function SettingsClient() {
       <h1 className="text-xl font-semibold">Settings</h1>
 
       <section className="mt-5 rounded-lg border border-neutral-800 bg-neutral-900/40 p-4">
-        <h2 className="text-sm font-semibold">AI Provider</h2>
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold">AI Provider</h2>
+          {ai && (
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-neutral-500">
+                Models {formatAgo(ai.modelsFetchedAt)}
+              </span>
+              <button
+                onClick={refreshModels}
+                disabled={modelsRefreshing}
+                title="Re-pull the latest models from the providers"
+                className="rounded-md border border-neutral-700 px-2.5 py-1 text-xs text-neutral-300 hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {modelsRefreshing ? "Refreshing…" : "Refresh models"}
+              </button>
+            </div>
+          )}
+        </div>
         {loading && <p className="mt-2 text-xs text-neutral-500">Loading...</p>}
         {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
         {ai && (
@@ -640,4 +674,15 @@ export default function SettingsClient() {
       )}
     </div>
   );
+}
+
+function formatAgo(ts: number | null | undefined): string {
+  if (!ts) return "not loaded yet";
+  const secs = Math.max(0, Math.round((Date.now() - ts) / 1000));
+  if (secs < 60) return "updated just now";
+  const mins = Math.round(secs / 60);
+  if (mins < 60) return `updated ${mins}m ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `updated ${hrs}h ago`;
+  return `updated ${Math.round(hrs / 24)}d ago`;
 }

@@ -25,6 +25,17 @@ export type Effort =
   | "max"
   | "dynamic";
 
+/** Every effort token the app understands — used to validate dynamic models. */
+export const EFFORTS: Effort[] = [
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+  "dynamic",
+];
+
 export interface ModelSpec {
   id: string;
   label: string;
@@ -143,7 +154,10 @@ export const CATALOG: ProviderSpec[] = [
     mode: "apply",
     envKey: null,
     cliCommand: "agy",
-    models: [{ id: "default", label: "Default (Gemini)", efforts: [] }],
+    // Antigravity is a multi-vendor gateway that picks the model from its own CLI
+    // config (no readable default, no stable per-model ids), so Genboard can't
+    // drive or discover its model — it runs whatever the agy CLI is set to.
+    models: [{ id: "default", label: "Set in agy CLI", efforts: [] }],
   },
   {
     name: "cursor-cli",
@@ -178,35 +192,46 @@ export function execModeFor(name: ProviderName): ExecMode {
   return providerSpec(name)?.mode ?? "patch";
 }
 
-/** Validate a settings object against the catalog. */
+/**
+ * Validate a settings object. Models are now discovered dynamically (see
+ * model-cache.ts), so a valid model need not be in the static catalog — we only
+ * require a known provider, a non-empty model id, and a recognized effort token.
+ * The switcher constrains effort to the model's tier; providers tolerate any
+ * level. (The static-list check would reject newly-released models.)
+ */
 export function isValidSettings(s: unknown): s is AISettings {
   if (!s || typeof s !== "object") return false;
   const { provider, model, effort } = s as AISettings;
-  const spec = providerSpec(provider);
-  if (!spec) return false;
-  if (!spec.models.some((m) => m.id === model)) return false;
-  const allowed = effortsFor(provider, model);
-  if (effort == null) return allowed.length === 0 ? true : allowed.length >= 0; // null always allowed
-  return allowed.includes(effort);
+  if (!providerSpec(provider)) return false;
+  if (typeof model !== "string" || !model.trim()) return false;
+  if (effort == null) return true;
+  return EFFORTS.includes(effort);
 }
 
-/** Coerce arbitrary settings to a valid shape, repairing model/effort as needed. */
+/**
+ * Coerce arbitrary settings to a valid shape. Keeps a non-empty model id as-is
+ * (it may be a dynamically-discovered model absent from the static catalog),
+ * falling back to a static default only when the model is missing. Effort is
+ * trusted when it's a known token; otherwise it defaults from the static model's
+ * tier when one is known, else null.
+ */
 export function normalizeSettings(s: Partial<AISettings> | undefined): AISettings {
   const provider = providerSpec(s?.provider as ProviderName)
     ? (s!.provider as ProviderName)
     : DEFAULT_SETTINGS.provider;
   const models = modelsFor(provider);
-  const model = models.some((m) => m.id === s?.model)
-    ? (s!.model as string)
-    : (models[0]?.id ?? DEFAULT_SETTINGS.model);
-  const allowed = effortsFor(provider, model);
+  const model =
+    typeof s?.model === "string" && s.model.trim()
+      ? s.model
+      : (models[0]?.id ?? DEFAULT_SETTINGS.model);
+
   let effort: Effort | null;
-  if (allowed.length === 0) {
-    effort = null;
-  } else if (s?.effort && allowed.includes(s.effort)) {
+  if (s?.effort && EFFORTS.includes(s.effort)) {
     effort = s.effort;
   } else {
-    effort = allowed.includes("high") ? "high" : allowed[0];
+    // Unknown/absent effort: seed from the static model's tier if we have one.
+    const staticEfforts = models.find((m) => m.id === model)?.efforts ?? [];
+    effort = staticEfforts.length === 0 ? null : staticEfforts.includes("high") ? "high" : staticEfforts[0];
   }
   return { provider, model, effort };
 }

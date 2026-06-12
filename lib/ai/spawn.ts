@@ -100,6 +100,45 @@ export function resolveCliInfo(cmd: string): CliResolution {
 }
 
 /**
+ * Run a short-lived CLI and resolve its accumulated **stdout**, bounded by a
+ * timeout. Unlike {@link spawnStream} (a long-running, unbounded generator), this
+ * is for quick metadata commands like `agent models`. Rejects if the binary is
+ * unresolved, the command exits non-zero, or the timeout elapses.
+ */
+export async function captureCli(
+  cmd: string,
+  args: string[],
+  timeoutMs = 10_000,
+): Promise<string> {
+  if (!resolveCliBinary(cmd)) throw new Error(`${cmd} not found`);
+  return new Promise<string>((resolve, reject) => {
+    const child = spawn(resolveCommand(cmd), args, {
+      cwd: os.homedir(),
+      shell: true,
+      stdio: ["ignore", "pipe", "pipe"],
+      env: { ...process.env, PATH: augmentedPath() },
+    });
+    let stdout = "";
+    let stderr = "";
+    const timer = setTimeout(() => {
+      child.kill("SIGKILL");
+      reject(new Error(`${cmd} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+    child.stdout.on("data", (d: Buffer) => (stdout += d.toString()));
+    child.stderr.on("data", (d: Buffer) => (stderr += d.toString()));
+    child.on("error", (e) => {
+      clearTimeout(timer);
+      reject(e);
+    });
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      if (code === 0) resolve(stdout);
+      else reject(new Error(`${cmd} exited with code ${code}${stderr.trim() ? `: ${stderr.trim()}` : ""}`));
+    });
+  });
+}
+
+/**
  * Spawn a CLI, stream its stdout+stderr as tokens, and return the accumulated
  * **stdout** (the parse target). The prompt is delivered via stdin so no
  * untrusted data is placed on the shell command line. `shell: true` is used so

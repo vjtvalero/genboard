@@ -79,6 +79,12 @@ export default function AISwitcher({
         className={selectClass}
         value={value.model}
         onChange={(e) => chooseModel(e.target.value)}
+        disabled={value.provider === "agy"}
+        title={
+          value.provider === "agy"
+            ? "Antigravity runs whichever model is selected in your agy CLI — Genboard can't set it here."
+            : "Model"
+        }
       >
         {models.map((m) => (
           <option key={m.id} value={m.id}>

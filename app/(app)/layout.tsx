@@ -10,7 +10,7 @@ import AISwitcher from "@/components/layout/AISwitcher";
 import SignOutButton from "@/components/layout/SignOutButton";
 import Sidebar from "@/components/layout/Sidebar";
 import { getAISettings, availableProviders } from "@/lib/ai/config";
-import { CATALOG } from "@/lib/ai/catalog";
+import { getEffectiveCatalog } from "@/lib/ai/model-cache";
 import { getUserByLogin, isUserRole, roleToMode } from "@/lib/users";
 import { userCanAccessRepository } from "@/lib/repositories";
 import type { Priority, TaskStatus, UserRole } from "@/types";
@@ -37,6 +37,7 @@ export default async function AppLayout({
       : null;
   const aiSettings = await getAISettings();
   const isAdmin = role === "admin";
+  const aiCatalog = isAdmin ? await getEffectiveCatalog() : [];
 
   const dbTasks = selectedRepo
     ? await prisma.task.findMany({
@@ -62,7 +63,7 @@ export default async function AppLayout({
           <RepoSwitcher selectedRepo={selectedRepo} />
         </div>
         {isAdmin && (
-          <AISwitcher settings={aiSettings} catalog={CATALOG} available={availableProviders()} />
+          <AISwitcher settings={aiSettings} catalog={aiCatalog} available={availableProviders()} />
         )}
         <ModeSwitcher mode={mode} role={role} canSwitch />
         <Link

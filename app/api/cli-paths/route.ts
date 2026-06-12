@@ -2,6 +2,7 @@ import { badRequest, serverError, json, requireRole } from "@/lib/api";
 import { CATALOG } from "@/lib/ai/catalog";
 import { resolveCliInfo } from "@/lib/ai/spawn";
 import { setCliPath } from "@/lib/ai/cli-paths";
+import { refreshModelCache } from "@/lib/ai/model-cache";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +43,7 @@ export async function PUT(req: Request) {
 
   try {
     await setCliPath(spec.cliCommand as string, value ?? "");
+    void refreshModelCache(); // re-list models from the newly-resolved CLI
     return json({ clis: statusList() });
   } catch (err) {
     return serverError((err as Error).message);

@@ -2,6 +2,7 @@ import { badRequest, serverError, json, requireRole } from "@/lib/api";
 import { CATALOG, type ProviderName } from "@/lib/ai/catalog";
 import { keySource, maskedKey, setApiKey } from "@/lib/ai/secrets";
 import { validateApiKey } from "@/lib/ai/validate";
+import { refreshModelCache } from "@/lib/ai/model-cache";
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +46,7 @@ export async function PUT(req: Request) {
 
   try {
     await setApiKey(provider as ProviderName, key ?? "");
+    void refreshModelCache(); // a newly-usable provider may unlock more models
     return json({ keys: statusList() });
   } catch (err) {
     return serverError((err as Error).message);

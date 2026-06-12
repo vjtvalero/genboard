@@ -1,17 +1,20 @@
 import { getSession, unauthorized, badRequest, serverError, json, requireRole } from "@/lib/api";
 import { getAISettings, setAISettings, availableProviders } from "@/lib/ai/config";
-import { CATALOG, isValidSettings } from "@/lib/ai/catalog";
+import { getEffectiveCatalog, getModelCacheFetchedAt } from "@/lib/ai/model-cache";
+import { isValidSettings } from "@/lib/ai/catalog";
 
 export const dynamic = "force-dynamic";
 
-// GET /api/ai-config — current settings + catalog + which providers are usable.
+// GET /api/ai-config — current settings + (dynamically-discovered) catalog +
+// which providers are usable + when the model list was last refreshed.
 export async function GET() {
   const session = await getSession();
   if (!session) return unauthorized();
   return json({
     settings: await getAISettings(),
-    catalog: CATALOG,
+    catalog: await getEffectiveCatalog(),
     available: availableProviders(),
+    modelsFetchedAt: await getModelCacheFetchedAt(),
   });
 }
 
