@@ -70,7 +70,7 @@ export default function AISwitcher({
         {catalog.map((p) => (
           <option key={p.name} value={p.name} disabled={!available[p.name]}>
             {p.label}
-            {available[p.name] ? "" : " (no key)"}
+            {available[p.name] ? "" : p.kind === "cli" ? " (not installed)" : " (no key)"}
           </option>
         ))}
       </select>

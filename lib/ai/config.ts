@@ -8,6 +8,8 @@ import {
   type AISettings,
   type ProviderName,
 } from "./catalog";
+import { resolveCliBinary } from "./spawn";
+import { hasApiKey } from "./secrets";
 
 function configPath(): string {
   return path.join(os.homedir(), ".genboard", "ai-config.json");
@@ -39,11 +41,20 @@ export async function setAISettings(s: Partial<AISettings>): Promise<AISettings>
   return normalized;
 }
 
-/** Which providers are usable right now: API providers need their key; CLI providers are assumed present. */
+/**
+ * Which providers are usable right now: API providers need a key (stored in the
+ * UI or in the environment); CLI providers need their binary resolvable on the
+ * (augmented) PATH or pinned via `<CMD>_BIN`. This surfaces a missing CLI/key in
+ * the switcher instead of letting the run fail at exec time.
+ */
 export function availableProviders(): Record<ProviderName, boolean> {
   const out = {} as Record<ProviderName, boolean>;
   for (const spec of CATALOG) {
-    out[spec.name] = spec.envKey ? !!process.env[spec.envKey] : true;
+    if (spec.kind === "cli") {
+      out[spec.name] = spec.cliCommand ? resolveCliBinary(spec.cliCommand) != null : true;
+    } else {
+      out[spec.name] = spec.envKey ? hasApiKey(spec.name) : true;
+    }
   }
   return out;
 }

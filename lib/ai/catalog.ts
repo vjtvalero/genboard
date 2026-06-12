@@ -38,6 +38,8 @@ export interface ProviderSpec {
   mode: ExecMode;
   /** Env var that must be set for an API provider; null for CLI providers. */
   envKey: string | null;
+  /** Binary name to detect on PATH for a CLI provider; null for API providers. */
+  cliCommand?: string | null;
   models: ModelSpec[];
 }
 
@@ -110,6 +112,7 @@ export const CATALOG: ProviderSpec[] = [
     kind: "cli",
     mode: "patch",
     envKey: null,
+    cliCommand: "claude",
     models: CLAUDE_MODELS,
   },
   {
@@ -118,6 +121,7 @@ export const CATALOG: ProviderSpec[] = [
     kind: "cli",
     mode: "apply",
     envKey: null,
+    cliCommand: "codex",
     models: OPENAI_MODELS.filter((m) => m.efforts.length > 0),
   },
   {
@@ -126,6 +130,7 @@ export const CATALOG: ProviderSpec[] = [
     kind: "cli",
     mode: "apply",
     envKey: null,
+    cliCommand: "agy",
     models: [{ id: "default", label: "Default (Gemini)", efforts: [] }],
   },
 ];

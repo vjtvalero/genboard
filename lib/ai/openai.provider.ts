@@ -1,6 +1,7 @@
 import { createOpenAI } from "@ai-sdk/openai";
 import { type LanguageModel } from "ai";
 import { VercelAIProvider } from "./vercel-base.provider";
+import { getApiKey } from "./secrets";
 import type { Effort } from "./catalog";
 
 /** Vercel AI SDK + OpenAI. Effort maps to reasoningEffort on reasoning models. */
@@ -15,10 +16,10 @@ export class OpenAIProvider extends VercelAIProvider {
   }
 
   protected languageModel(): LanguageModel {
-    const apiKey = process.env.OPENAI_API_KEY;
+    const apiKey = getApiKey("openai");
     if (!apiKey) {
       throw new Error(
-        "OPENAI_API_KEY is not set. Add it to .env.local or pick another provider.",
+        "No OpenAI API key. Add one in Settings → API Keys (or set OPENAI_API_KEY), or pick another provider.",
       );
     }
     return createOpenAI({ apiKey })(this.model);

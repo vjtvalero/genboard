@@ -1,6 +1,7 @@
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { type LanguageModel } from "ai";
 import { VercelAIProvider } from "./vercel-base.provider";
+import { getApiKey } from "./secrets";
 import type { Effort } from "./catalog";
 
 // Map our effort tiers to a Gemini thinking-token budget (-1 = dynamic).
@@ -23,10 +24,10 @@ export class GoogleProvider extends VercelAIProvider {
   }
 
   protected languageModel(): LanguageModel {
-    const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+    const apiKey = getApiKey("google");
     if (!apiKey) {
       throw new Error(
-        "GOOGLE_GENERATIVE_AI_API_KEY is not set. Add it to .env.local or pick another provider.",
+        "No Google API key. Add one in Settings → API Keys (or set GOOGLE_GENERATIVE_AI_API_KEY), or pick another provider.",
       );
     }
     return createGoogleGenerativeAI({ apiKey })(this.model);

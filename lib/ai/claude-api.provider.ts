@@ -1,6 +1,7 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { type LanguageModel } from "ai";
 import { VercelAIProvider } from "./vercel-base.provider";
+import { getApiKey } from "./secrets";
 import type { Effort } from "./catalog";
 
 /** Vercel AI SDK + Anthropic. Effort maps to adaptive thinking + the effort param. */
@@ -15,10 +16,10 @@ export class ClaudeAPIProvider extends VercelAIProvider {
   }
 
   protected languageModel(): LanguageModel {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
+    const apiKey = getApiKey("claude-api");
     if (!apiKey) {
       throw new Error(
-        "ANTHROPIC_API_KEY is not set. Add it to .env.local or pick another provider.",
+        "No Anthropic API key. Add one in Settings → API Keys (or set ANTHROPIC_API_KEY), or pick another provider.",
       );
     }
     return createAnthropic({ apiKey })(this.model);
