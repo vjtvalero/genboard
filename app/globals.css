@@ -43,24 +43,26 @@ body {
   @apply font-mono text-[13px] leading-relaxed whitespace-pre-wrap break-words;
 }
 
-/* react-diff-view base theming for dark mode */
+/* react-diff-view dark theming. Set via the library's CSS custom properties
+   scoped to .diff so they override the library's :root defaults regardless of
+   stylesheet load order (inherited custom properties resolve from the nearest
+   ancestor). The library's --diff-text-color defaults to `initial`, which
+   resolves to white under color-scheme:dark — that, on the default light-green
+   insert background, produced an unreadable solid green block. */
 .diff {
   @apply text-[12.5px] font-mono;
+  --diff-background-color: transparent;
+  --diff-text-color: theme("colors.neutral.200");
+  --diff-selection-background-color: rgba(59, 130, 246, 0.35);
+  --diff-code-insert-background-color: rgba(16, 185, 129, 0.16);
+  --diff-code-delete-background-color: rgba(244, 63, 94, 0.16);
+  --diff-code-insert-edit-background-color: rgba(16, 185, 129, 0.32);
+  --diff-code-delete-edit-background-color: rgba(244, 63, 94, 0.32);
+  --diff-gutter-insert-background-color: rgba(16, 185, 129, 0.24);
+  --diff-gutter-delete-background-color: rgba(244, 63, 94, 0.24);
 }
 .diff-gutter {
   @apply text-neutral-600;
-}
-.diff-code-insert {
-  background-color: rgba(16, 185, 129, 0.16);
-}
-.diff-code-delete {
-  background-color: rgba(244, 63, 94, 0.16);
-}
-.diff-gutter-insert {
-  background-color: rgba(16, 185, 129, 0.24);
-}
-.diff-gutter-delete {
-  background-color: rgba(244, 63, 94, 0.24);
 }
 
 /* Thin scrollbars */
