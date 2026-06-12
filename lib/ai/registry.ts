@@ -8,6 +8,7 @@ import { GoogleProvider } from "./google.provider";
 import { ClaudeCodeCLIProvider } from "./claude-cli.provider";
 import { CodexCLIProvider } from "./codex.provider";
 import { AntigravityCLIProvider } from "./agy.provider";
+import { CursorCLIProvider } from "./cursor-cli.provider";
 
 /** Construct an AIProvider from explicit settings (already validated/normalized). */
 export function providerFromSettings(settings: AISettings): AIProvider {
@@ -25,6 +26,8 @@ export function providerFromSettings(settings: AISettings): AIProvider {
       return new CodexCLIProvider(model, effort);
     case "agy":
       return new AntigravityCLIProvider();
+    case "cursor-cli":
+      return new CursorCLIProvider(model);
     default:
       throw new Error(`Unknown AI provider "${provider}".`);
   }

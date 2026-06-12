@@ -10,7 +10,8 @@ export type ProviderName =
   | "google"
   | "claude-cli"
   | "codex"
-  | "agy";
+  | "agy"
+  | "cursor-cli";
 
 export type ProviderKind = "api" | "cli";
 export type ExecMode = "patch" | "apply";
@@ -81,6 +82,17 @@ const GOOGLE_MODELS: ModelSpec[] = [
   { id: "gemini-2.5-flash-lite", label: "Gemini 2.5 Flash Lite", efforts: GOOGLE_THINKING },
 ];
 
+// Cursor Agent CLI — effort is encoded in the model slug, not a separate control.
+const CURSOR_MODELS: ModelSpec[] = [
+  { id: "composer-2.5-fast", label: "Composer 2.5 Fast", efforts: [] },
+  { id: "composer-2.5", label: "Composer 2.5", efforts: [] },
+  { id: "auto", label: "Auto", efforts: [] },
+  { id: "claude-4.6-sonnet-medium-thinking", label: "Sonnet 4.6 Thinking", efforts: [] },
+  { id: "claude-opus-4-8-high", label: "Opus 4.8", efforts: [] },
+  { id: "gpt-5.3-codex", label: "GPT-5.3 Codex", efforts: [] },
+  { id: "gpt-5.5-medium", label: "GPT-5.5", efforts: [] },
+];
+
 export const CATALOG: ProviderSpec[] = [
   {
     name: "claude-api",
@@ -132,6 +144,15 @@ export const CATALOG: ProviderSpec[] = [
     envKey: null,
     cliCommand: "agy",
     models: [{ id: "default", label: "Default (Gemini)", efforts: [] }],
+  },
+  {
+    name: "cursor-cli",
+    label: "Cursor CLI",
+    kind: "cli",
+    mode: "apply",
+    envKey: null,
+    cliCommand: "agent",
+    models: CURSOR_MODELS,
   },
 ];
 
