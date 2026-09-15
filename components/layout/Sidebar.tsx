@@ -31,18 +31,40 @@ export default function Sidebar({
     );
   }
 
+  const reviewActive = pathname.startsWith("/review") || pathname.startsWith("/results");
+  const boardActive = pathname === "/tasks" || pathname.startsWith("/tasks/");
+
   return (
     <nav className="p-2">
-      <div className="flex items-center justify-between px-2 py-2">
-        <span className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
-          {mode === "se" ? "Review Queue" : "Backlog"}
-        </span>
+      <div className="mb-2 flex gap-1">
         <Link
-          href={mode === "se" ? "/tasks?view=review" : "/tasks"}
-          className="text-xs text-neutral-400 hover:text-neutral-100"
+          href="/tasks"
+          className={
+            "flex-1 rounded-md px-2 py-1.5 text-center text-sm transition " +
+            (boardActive && !reviewActive
+              ? "bg-neutral-800 text-neutral-100"
+              : "text-neutral-300 hover:bg-neutral-800/60")
+          }
         >
-          Board →
+          Board
         </Link>
+        <Link
+          href="/review"
+          className={
+            "flex-1 rounded-md px-2 py-1.5 text-center text-sm transition " +
+            (reviewActive
+              ? "bg-neutral-800 text-neutral-100"
+              : "text-neutral-300 hover:bg-neutral-800/60")
+          }
+        >
+          Review
+        </Link>
+      </div>
+
+      <div className="px-2 py-2">
+        <span className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+          {mode === "se" ? "Tasks" : "Backlog"}
+        </span>
       </div>
 
       {tasks.length === 0 ? (

@@ -7,6 +7,7 @@ import type { Mode, Priority, TaskStatus } from "@/types";
 import { STATUS_CLASS, STATUS_LABEL, PRIORITY_CLASS, MODE_SHORT } from "@/lib/labels";
 import { readSSE } from "@/lib/stream-client";
 import ActivityTrail, { type ActivityEventClient } from "./ActivityTrail";
+import ChatTab from "@/components/chat/ChatTab";
 
 interface TaskProp {
   id: string;
@@ -36,6 +37,7 @@ export default function TaskDetail({
   const [stream, setStream] = useState("");
   const [resultId, setResultId] = useState<string | null>(task.latestResultId);
   const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<"output" | "chat">("output");
   const termRef = useRef<HTMLPreElement>(null);
 
   useEffect(() => {
@@ -145,7 +147,30 @@ export default function TaskDetail({
           </div>
         </div>
 
-        <label className="mt-5 block text-sm font-medium text-neutral-300">Prompt</label>
+        <div className="mt-5 flex gap-1 border-b border-neutral-800">
+          {(["output", "chat"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={
+                "-mb-px border-b-2 px-3 py-2 text-sm font-medium transition " +
+                (tab === t
+                  ? "accent-text border-current"
+                  : "border-transparent text-neutral-400 hover:text-neutral-200")
+              }
+            >
+              {t === "output" ? "Output" : "Chat"}
+            </button>
+          ))}
+        </div>
+
+        {tab === "chat" ? (
+          <div className="mt-4">
+            <ChatTab taskId={task.id} />
+          </div>
+        ) : (
+        <>
+        <label className="mt-4 block text-sm font-medium text-neutral-300">Prompt</label>
         <textarea
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
@@ -173,9 +198,9 @@ export default function TaskDetail({
               {saving ? "Saving…" : "Save prompt"}
             </button>
           )}
-          {canViewDiff && (
+          {canViewDiff && resultId && (
             <Link
-              href={`/tasks/${task.id}/diff`}
+              href={`/results/${resultId}`}
               className="rounded-lg border border-neutral-700 px-3 py-2 text-sm text-neutral-200 hover:bg-neutral-800"
             >
               View Diff →
@@ -197,6 +222,8 @@ export default function TaskDetail({
               {stream || "…"}
             </pre>
           </div>
+        )}
+        </>
         )}
       </div>
 

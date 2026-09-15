@@ -1,4 +1,4 @@
-import type { Priority, TaskStatus, Mode, ActivityKind } from "@/types";
+import type { Priority, TaskStatus, Mode, ActivityKind, ResultOrigin, ReviewStatus } from "@/types";
 
 export const STATUS_LABEL: Record<TaskStatus, string> = {
   backlog: "Backlog",
@@ -70,3 +70,25 @@ export const ACTIVITY_LABEL: Record<ActivityKind, string> = {
 };
 
 export const ALL_PRIORITIES: Priority[] = ["urgent", "high", "medium", "low"];
+
+export const REVIEW_STATUS_LABEL: Record<ReviewStatus, string> = {
+  pending: "Pending review",
+  approved: "Approved",
+  changes_requested: "Changes requested",
+};
+
+export const REVIEW_STATUS_CLASS: Record<ReviewStatus, string> = {
+  pending: "bg-violet-500/20 text-violet-300",
+  approved: "bg-emerald-500/20 text-emerald-300",
+  changes_requested: "bg-rose-500/20 text-rose-300",
+};
+
+export const ORIGIN_LABEL: Record<ResultOrigin, string> = {
+  execute: "Execute",
+  chat: "Chat",
+};
+
+export const ORIGIN_CLASS: Record<ResultOrigin, string> = {
+  execute: "bg-sky-500/15 text-sky-300",
+  chat: "bg-teal-500/20 text-teal-300",
+};

@@ -84,6 +84,7 @@ model Task {
   results       Result[]
   events        ActivityEvent[]
   executionRuns ExecutionRun[]
+  chatSession   ChatSession?
 
   @@index([repoFullName, status])
   @@index([repositoryId])
@@ -91,26 +92,30 @@ model Task {
 }
 
 model ExecutionRun {
-  id         String    @id @default(cuid())
-  taskId     String
-  userId     String?
-  mode       String    @default("pm") // pm | se
-  status     String    @default("queued") // queued | running | succeeded | failed
-  resultId   String?
-  error      String?
-  createdAt  DateTime  @default(now())
-  startedAt  DateTime?
-  finishedAt DateTime?
-  updatedAt  DateTime  @updatedAt
+  id            String    @id @default(cuid())
+  taskId        String
+  userId        String?
+  mode          String    @default("pm") // pm | se
+  status        String    @default("queued") // queued | running | succeeded | failed
+  origin        String    @default("execute") // execute | chat
+  chatSessionId String?
+  resultId      String?
+  error         String?
+  createdAt     DateTime  @default(now())
+  startedAt     DateTime?
+  finishedAt    DateTime?
+  updatedAt     DateTime  @updatedAt
 
-  task Task           @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  user User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
-  logs ExecutionLog[]
+  task        Task           @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user        User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  chatSession ChatSession?   @relation(fields: [chatSessionId], references: [id], onDelete: SetNull)
+  logs        ExecutionLog[]
 
   @@index([taskId, status])
   @@index([userId])
   @@index([status, createdAt])
   @@index([createdAt])
+  @@index([chatSessionId, status])
 }
 
 model ExecutionLog {
@@ -131,6 +136,8 @@ model Result {
   id           String   @id @default(cuid())
   taskId       String
   task         Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  origin       String   @default("execute") // execute | chat
+  chatSessionId String?
   patchesJson  String // JSON: { path, originalContent, newContent }[]
   diffJson     String   @default("[]") // JSON: DiffFile[] for display
   executedBy   String   @default("pm") // "pm" | "se" — which mode ran it (audit)
@@ -145,10 +152,12 @@ model Result {
   worktreePath String?
   rawText      String   @default("")
   createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now()) @updatedAt
 
   review Review?
 
   @@index([taskId])
+  @@index([origin])
 }
 
 model Review {
@@ -163,6 +172,34 @@ model Review {
   createdAt      DateTime @default(now())
 
   @@index([reviewerUserId])
+}
+
+model ChatSession {
+  id           String   @id @default(cuid())
+  taskId       String   @unique // exactly one chat per task
+  worktreePath String? // the chat's persistent worktree (null before first edit / after PR)
+  baseSha      String? // commit the worktree was created at; diff anchor for cumulative changes
+  resultId     String? // the single evolving Result this chat upserts
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  task     Task           @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  messages ChatMessage[]
+  runs     ExecutionRun[]
+}
+
+model ChatMessage {
+  id            String   @id @default(cuid())
+  chatSessionId String
+  role          String // user | assistant
+  content       String   @default("")
+  runId         String? // ExecutionRun that produced this assistant turn (for streaming/replay)
+  resultId      String? // Result produced/updated by this turn, if any
+  createdAt     DateTime @default(now())
+
+  chatSession ChatSession @relation(fields: [chatSessionId], references: [id], onDelete: Cascade)
+
+  @@index([chatSessionId, createdAt])
 }
 
 model ActivityEvent {

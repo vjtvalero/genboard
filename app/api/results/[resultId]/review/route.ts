@@ -57,11 +57,15 @@ export async function POST(req: Request, { params }: { params: { resultId: strin
       data: { reviewStatus: decision },
     });
 
+    // Mirror the verdict onto the board task only for the one-way execute flow.
+    // Chat-origin results live entirely in the result-centric review queue and must
+    // not force the parent task's status (a task can hold both flows at once).
     const newStatus = decision === "approved" ? "approved" : "changes_requested";
-    await prisma.task.update({
-      where: { id: result.taskId },
-      data: { status: newStatus },
-    });
+    if (result.origin === "execute") {
+      await prisma.task
+        .update({ where: { id: result.taskId }, data: { status: newStatus } })
+        .catch(() => {});
+    }
 
     await logActivity(
       result.taskId,
@@ -71,7 +75,11 @@ export async function POST(req: Request, { params }: { params: { resultId: strin
       ctx.user.id,
     );
 
-    return json({ ok: true, reviewStatus: decision, taskStatus: newStatus });
+    return json({
+      ok: true,
+      reviewStatus: decision,
+      taskStatus: result.origin === "execute" ? newStatus : undefined,
+    });
   } catch (err) {
     return serverError((err as Error).message);
   }

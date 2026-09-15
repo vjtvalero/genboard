@@ -93,10 +93,22 @@ export async function POST(req: Request, { params }: { params: { resultId: strin
         worktreePath: null,
       },
     });
-    await prisma.task.update({
-      where: { id: result.taskId },
-      data: { status: "pr_opened" },
-    });
+    // Mirror onto the board task only for the one-way execute flow (see review route).
+    if (result.origin === "execute") {
+      await prisma.task
+        .update({ where: { id: result.taskId }, data: { status: "pr_opened" } })
+        .catch(() => {});
+    }
+    // A chat session's worktree is persistent across turns; release it now that its
+    // changes are committed and pushed, and detach the session from the closed Result.
+    if (result.origin === "chat" && result.chatSessionId) {
+      await prisma.chatSession
+        .update({
+          where: { id: result.chatSessionId },
+          data: { worktreePath: null, baseSha: null, resultId: null },
+        })
+        .catch(() => {});
+    }
     await logActivity(
       result.taskId,
       "pr_opened",

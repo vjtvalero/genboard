@@ -27,7 +27,7 @@ export class ClaudeCodeCLIProvider implements AIProvider {
   constructor(private readonly model: string) {}
 
   private args(): string[] {
-    const args = ["--print"];
+    const args = ["--print", "--permission-mode", "bypassPermissions"];
     if (this.model) args.push("--model", this.model);
     return args;
   }

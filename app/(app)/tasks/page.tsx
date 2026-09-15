@@ -1,30 +1,21 @@
 import { cookies } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { getMode } from "@/lib/mode";
-import { getUserByLogin, isUserRole, roleToMode } from "@/lib/users";
+import { getUserByLogin } from "@/lib/users";
 import { userCanAccessRepository } from "@/lib/repositories";
 import TaskList from "@/components/tasks/TaskList";
-import ReviewQueue from "@/components/tasks/ReviewQueue";
-import type { Priority, TaskStatus, TaskCard, UserRole } from "@/types";
+import type { Priority, TaskStatus, TaskCard } from "@/types";
 
 export const dynamic = "force-dynamic";
 
-export default async function TasksPage({
-  searchParams,
-}: {
-  searchParams: { view?: string };
-}) {
+export default async function TasksPage() {
   const session = await auth();
   const user = session?.githubLogin ? await getUserByLogin(session.githubLogin) : null;
-  const role: UserRole = isUserRole(user?.role) ? user.role : "pm";
-  const mode = roleToMode(role, getMode());
   const selectedRepoCookie = cookies().get("genboard_repo")?.value ?? null;
   const selectedRepo =
     user && selectedRepoCookie && (await userCanAccessRepository(user, selectedRepoCookie))
       ? selectedRepoCookie
       : null;
-  const isReview = mode === "se" || searchParams.view === "review";
 
   if (!selectedRepo) {
     return (
@@ -60,11 +51,7 @@ export default async function TasksPage({
 
   return (
     <div className="p-6">
-      {isReview ? (
-        <ReviewQueue tasks={tasks} repo={selectedRepo} />
-      ) : (
-        <TaskList tasks={tasks} repo={selectedRepo} />
-      )}
+      <TaskList tasks={tasks} repo={selectedRepo} />
     </div>
   );
 }

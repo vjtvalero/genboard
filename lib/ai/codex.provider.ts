@@ -17,14 +17,13 @@ export class CodexCLIProvider extends AgenticCLIProvider {
   }
 
   private baseArgs(): string[] {
-    const args = ["exec"];
+    const args = ["exec", "--dangerously-bypass-approvals-and-sandbox"];
     if (this.model) args.push("-m", this.model);
     return args;
   }
 
   protected executeInvocation(prompt: string): CLIInvocation {
-    // --full-auto: run without approval prompts (it edits files non-interactively).
-    const args = [...this.baseArgs(), "--full-auto"];
+    const args = this.baseArgs();
     if (this.effort) args.push("-c", `model_reasoning_effort=${this.effort}`);
     return { cmd: "codex", args, stdin: prompt };
   }

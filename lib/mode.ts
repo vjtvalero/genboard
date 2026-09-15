@@ -7,9 +7,9 @@ export function isMode(value: unknown): value is Mode {
   return value === "pm" || value === "se";
 }
 
-/** Default landing per mode: PM → backlog, SE → review queue (same /tasks page, mode-aware). */
+/** Default landing per mode: PM → backlog board, SE → the result-centric review queue. */
 export function defaultLandingForMode(mode: Mode): string {
-  return mode === "se" ? "/tasks?view=review" : "/tasks";
+  return mode === "se" ? "/review" : "/tasks";
 }
 
 /** Server-side: read the persisted mode preference (defaults to "pm"). */
