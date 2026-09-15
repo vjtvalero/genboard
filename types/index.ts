@@ -25,6 +25,9 @@ export type ReviewDecision = "approved" | "changes_requested";
 
 export type ReviewStatus = "pending" | "approved" | "changes_requested";
 
+/** Where a Result/ExecutionRun came from: the one-way execute flow or a task chat. */
+export type ResultOrigin = "execute" | "chat";
+
 export type ActivityKind =
   | "created"
   | "executed"
@@ -135,6 +138,33 @@ export interface TaskCard {
   order: number;
   latestResultId: string | null;
   updatedAt: string;
+}
+
+// A row in the result-centric review queue (any origin).
+export interface ReviewQueueItem {
+  id: string; // resultId
+  taskId: string;
+  taskTitle: string;
+  taskPrompt: string;
+  repoFullName: string;
+  origin: ResultOrigin;
+  reviewStatus: ReviewStatus;
+  additions: number;
+  deletions: number;
+  fileCount: number;
+  prNumber: number | null;
+  prUrl: string | null;
+  prMerged: boolean;
+  updatedAt: string;
+}
+
+// A chat message rendered in a task's chat thread.
+export interface ChatMessageView {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  resultId: string | null;
+  createdAt: string;
 }
 
 export interface UserSummary {

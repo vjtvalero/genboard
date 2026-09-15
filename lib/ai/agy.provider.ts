@@ -11,11 +11,15 @@ import { AgenticCLIProvider, type CLIInvocation } from "./agentic-cli.provider";
 export class AntigravityCLIProvider extends AgenticCLIProvider {
   name = "agy";
 
+  private args(): string[] {
+    return ["--print", "--dangerously-skip-permissions"];
+  }
+
   protected executeInvocation(prompt: string): CLIInvocation {
-    return { cmd: "agy", args: ["-p"], stdin: prompt };
+    return { cmd: "agy", args: this.args(), stdin: prompt };
   }
 
   protected reviewInvocation(prompt: string): CLIInvocation {
-    return { cmd: "agy", args: ["-p"], stdin: this.reviewStdin(prompt) };
+    return { cmd: "agy", args: this.args(), stdin: this.reviewStdin(prompt) };
   }
 }

@@ -1,4 +1,5 @@
-import type { AIRequest, AIReviewRequest } from "@/types";
+import type { ActivityKind, AIRequest, AIReviewRequest } from "@/types";
+import { ACTIVITY_LABEL } from "@/lib/labels";
 
 const MAX_PROMPT_FILE_CHARS = 16_000;
 
@@ -53,6 +54,61 @@ export function buildExecuteUserMessage(req: AIRequest): string {
     "CURRENT REPOSITORY FILES:",
     fileBlocks || "(repository is empty)",
   ].join("\n");
+}
+
+export interface ChatTurn {
+  role: string; // "user" | "assistant"
+  content: string;
+}
+
+export interface ActivityLine {
+  kind: string;
+  actorMode: string;
+  detail: string;
+  createdAt: Date | string;
+}
+
+function formatActivity(activity: ActivityLine[]): string {
+  return activity
+    .map((e) => {
+      const when = new Date(e.createdAt).toISOString().replace("T", " ").slice(0, 16);
+      const label = ACTIVITY_LABEL[e.kind as ActivityKind] ?? e.kind;
+      const who = e.actorMode ? e.actorMode.toUpperCase() : "system";
+      return `- [${when}] ${who} ${label}${e.detail ? `: ${e.detail}` : ""}`;
+    })
+    .join("\n");
+}
+
+/**
+ * Build the prompt for one agentic chat turn: task context, the task's activity
+ * history (what has already happened — runs, reviews, PRs), and the running
+ * conversation. The model should reply conversationally and, when warranted,
+ * edit files in the working tree (which the runner turns into a diff).
+ */
+export function buildChatUserMessage(
+  history: ChatTurn[],
+  task: { title: string; prompt: string; repoFullName: string },
+  activity: ActivityLine[] = [],
+): string {
+  const convo = history
+    .map((m) => `${m.role === "user" ? "USER" : "ASSISTANT"}: ${m.content}`)
+    .join("\n\n");
+
+  return [
+    `You are pair-programming with a user in a chat about a task in repository ${task.repoFullName}.`,
+    `Task: ${task.title}`,
+    task.prompt ? `Task description:\n${task.prompt}` : "",
+    "",
+    "Reply to the latest user message. When code changes are warranted, edit the files in the working tree to implement them; otherwise just answer conversationally.",
+    "",
+    "TASK ACTIVITY SO FAR (what has already happened on this task):",
+    activity.length ? formatActivity(activity) : "(no activity yet)",
+    "",
+    "CONVERSATION SO FAR:",
+    convo || "(no messages yet)",
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 /** Build the user message for a review request. */

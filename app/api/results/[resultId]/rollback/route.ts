@@ -37,10 +37,21 @@ export async function POST(_req: Request, { params }: { params: { resultId: stri
     await rollbackPatches(root, stored);
     await removeTaskWorktree(result.task.repoFullName, root);
 
-    await prisma.task.update({
-      where: { id: result.taskId },
-      data: { status: "backlog" },
-    });
+    // Mirror onto the board task only for the one-way execute flow (see review route).
+    if (result.origin === "execute") {
+      await prisma.task
+        .update({ where: { id: result.taskId }, data: { status: "backlog" } })
+        .catch(() => {});
+    }
+    // Discarding a chat result resets its session so the next turn starts clean.
+    if (result.origin === "chat" && result.chatSessionId) {
+      await prisma.chatSession
+        .update({
+          where: { id: result.chatSessionId },
+          data: { worktreePath: null, baseSha: null, resultId: null },
+        })
+        .catch(() => {});
+    }
     await prisma.result.update({
       where: { id: result.id },
       data: { worktreePath: null },

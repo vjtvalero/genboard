@@ -13,7 +13,7 @@ export class CursorCLIProvider extends AgenticCLIProvider {
   }
 
   private baseArgs(): string[] {
-    const args = ["-p", "--force", "--trust"];
+    const args = ["-p", "--force", "--trust", "--sandbox", "disabled"];
     if (this.model && this.model !== "auto") args.push("--model", this.model);
     return args;
   }

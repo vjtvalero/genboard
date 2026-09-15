@@ -17,7 +17,7 @@ export default function ModeSwitcher({
   function setMode(next: Mode) {
     if (next === mode) return;
     document.cookie = `genboard_mode=${next}; path=/; max-age=31536000`;
-    router.push(next === "se" ? "/tasks?view=review" : "/tasks");
+    router.push(next === "se" ? "/review" : "/tasks");
     router.refresh();
   }
 

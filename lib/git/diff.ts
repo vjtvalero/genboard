@@ -1,5 +1,7 @@
+import { promises as fs } from "node:fs";
 import { structuredPatch } from "diff";
 import { gitClient } from "./client";
+import { resolveSafe } from "@/lib/patches";
 import type { DiffFile, FilePatch } from "@/types";
 
 /**
@@ -57,4 +59,51 @@ export function diffFromPatches(patches: FilePatch[]): DiffFile[] {
 export async function getWorkingDiff(repoPath: string): Promise<string> {
   const git = gitClient(repoPath);
   return git.diff();
+}
+
+/**
+ * Build FilePatch[] for every file that differs between the working tree and
+ * `base` (a commit-ish). Used to derive the patch set after an agentic CLI edits
+ * the tree, and to compute the *cumulative* diff of a multi-turn chat worktree
+ * against the branch tip it was created at.
+ *
+ * NOTE: deleted/binary files are skipped (v1 limitation) — additions and
+ * modifications are captured.
+ */
+export async function patchesFromWorktreeVsBase(
+  root: string,
+  base: string,
+): Promise<FilePatch[]> {
+  const git = gitClient(root);
+  const status = await git.status();
+  const paths = new Set<string>();
+  for (const f of status.files) {
+    // simple-git may report renames as "old -> new"; take the new path.
+    const p = f.path.includes(" -> ") ? f.path.split(" -> ")[1] : f.path;
+    paths.add(p.trim());
+  }
+
+  const patches: FilePatch[] = [];
+  for (const rel of paths) {
+    const abs = resolveSafe(root, rel);
+    let newContent: string;
+    try {
+      newContent = await fs.readFile(abs, "utf8");
+    } catch {
+      continue; // deleted or unreadable (binary) — skip
+    }
+
+    let originalContent = "";
+    if (base) {
+      try {
+        originalContent = await git.show([`${base}:${rel}`]);
+      } catch {
+        originalContent = ""; // new file
+      }
+    }
+    if (originalContent === newContent) continue;
+
+    patches.push({ path: rel.replace(/\\/g, "/"), originalContent, newContent });
+  }
+  return patches;
 }
